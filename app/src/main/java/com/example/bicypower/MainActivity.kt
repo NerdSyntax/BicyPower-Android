@@ -4,44 +4,39 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.bicypower.ui.theme.BicyPowerTheme
+import androidx.navigation.compose.rememberNavController
+import com.example.bicypower.navigation.AppNavGraph
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            BicyPowerTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-            }
+            AppRoot()
         }
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    BicyPowerTheme {
-        Greeting("Android")
+/*
+* En Compose, Surface es un contenedor visual que viene de Material 3.Crea un bloque
+*  que puedes personalizar con color, forma, sombra (elevación).
+Sirve para aplicar un fondo (color, borde, elevación, forma) siguiendo las guías de diseño
+* de Material.
+Piensa en él como una “lona base” sobre la cual vas a pintar tu UI.
+* Si cambias el tema a dark mode, colorScheme.background
+* cambia automáticamente y el Surface pinta la pantalla con el nuevo color.
+* */
+@Composable // Indica que esta función dibuja UI
+fun AppRoot() { // Raíz de la app para separar responsabilidades
+    val navController = rememberNavController() // Controlador de navegación
+    MaterialTheme { // Provee colores/tipografías Material 3
+        Surface(color = MaterialTheme.colorScheme.background) { // Fondo general
+            AppNavGraph(navController = navController) // Carga el NavHost + Scaffold + Drawer
+        }
     }
 }
