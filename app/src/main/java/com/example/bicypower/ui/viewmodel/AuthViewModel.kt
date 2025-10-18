@@ -2,12 +2,12 @@ package com.example.bicypower.ui.viewmodel
 
 import androidx.lifecycle.ViewModel                       // Base de ViewModel
 import androidx.lifecycle.viewModelScope                  // Scope de corrutinas ligado al VM
-import kotlinx.coroutines.delay                            // Simulamos tareas async (IO/red)
-import kotlinx.coroutines.flow.MutableStateFlow            // Estado observable mutable
-import kotlinx.coroutines.flow.StateFlow                   // Exposición inmutable
-import kotlinx.coroutines.flow.update                      // Helper para actualizar flows
-import kotlinx.coroutines.launch                            // Lanzar corrutinas
-import com.example.bicypower.domain.validation.*           // ✅ paquete corregido
+import kotlinx.coroutines.delay                           // Simulamos tareas async (IO/red)
+import kotlinx.coroutines.flow.MutableStateFlow           // Estado observable mutable
+import kotlinx.coroutines.flow.StateFlow                  // Exposición inmutable
+import kotlinx.coroutines.flow.update                     // Helper para actualizar flows
+import kotlinx.coroutines.launch                          // Lanzar corrutinas
+import com.example.bicypower.domain.validation.*          // ✅ validaciones
 
 // ----------------- ESTADOS DE UI (observable con StateFlow) -----------------
 
@@ -39,6 +39,15 @@ data class RegisterUiState(
     val errorMsg: String? = null
 )
 
+// 👉 NUEVO: estado para Recuperar contraseña
+data class ForgotUiState(
+    val email: String = "",
+    val emailError: String? = null,
+    val isSubmitting: Boolean = false,
+    val success: Boolean = false,
+    val errorMsg: String? = null
+)
+
 // ----------------- COLECCIÓN EN MEMORIA (solo para la demo) -----------------
 
 private data class DemoUser(
@@ -62,21 +71,30 @@ class AuthViewModel : ViewModel() {
     private val _register = MutableStateFlow(RegisterUiState())
     val register: StateFlow<RegisterUiState> = _register
 
+    // 👉 NUEVO: forgot
+    private val _forgot = MutableStateFlow(ForgotUiState())
+    val forgot: StateFlow<ForgotUiState> = _forgot
+
     // ----------------- LOGIN -----------------
 
     fun onLoginEmailChange(value: String) {
-        _login.update { it.copy(email = value, emailError = validateEmail(value)) }
+        val v = value.trim()
+        _login.update { it.copy(email = v, emailError = validateEmail(v)) }
         recomputeLoginCanSubmit()
     }
 
     fun onLoginPassChange(value: String) {
-        _login.update { it.copy(pass = value) }
+        val err = if (value.isBlank()) "La contraseña es obligatoria" else null
+        _login.update { it.copy(pass = value, passError = err) }
         recomputeLoginCanSubmit()
     }
 
     private fun recomputeLoginCanSubmit() {
         val s = _login.value
-        val can = s.emailError == null && s.email.isNotBlank() && s.pass.isNotBlank()
+        val can = s.emailError == null &&
+                s.passError == null &&
+                s.email.isNotBlank() &&
+                s.pass.isNotBlank()
         _login.update { it.copy(canSubmit = can) }
     }
 
@@ -113,7 +131,8 @@ class AuthViewModel : ViewModel() {
     }
 
     fun onRegisterEmailChange(value: String) {
-        _register.update { it.copy(email = value, emailError = validateEmail(value)) }
+        val v = value.trim()
+        _register.update { it.copy(email = v, emailError = validateEmail(v)) }
         recomputeRegisterCanSubmit()
     }
 
@@ -161,5 +180,39 @@ class AuthViewModel : ViewModel() {
 
     fun clearRegisterResult() {
         _register.update { it.copy(success = false, errorMsg = null) }
+    }
+
+    // ----------------- RECUPERAR CONTRASEÑA (FORGOT) -----------------
+
+    fun onForgotEmailChange(value: String) {
+        val v = value.trim()
+        _forgot.update { it.copy(email = v, emailError = validateEmail(v)) }
+    }
+
+    fun submitForgot() {
+        val s = _forgot.value
+        val err = validateEmail(s.email)
+        if (err != null || s.isSubmitting) {
+            _forgot.update { it.copy(emailError = err ?: it.emailError) }
+            return
+        }
+        viewModelScope.launch {
+            _forgot.update { it.copy(isSubmitting = true, errorMsg = null, success = false) }
+            delay(600)
+
+            val userExists = USERS.any { it.email.equals(s.email, ignoreCase = true) }
+            if (!userExists) {
+                _forgot.update { it.copy(isSubmitting = false, success = false, errorMsg = "No existe una cuenta con ese email") }
+                return@launch
+            }
+
+            // Simulación: “enviamos” correo de reseteo
+            delay(400)
+            _forgot.update { it.copy(isSubmitting = false, success = true, errorMsg = null) }
+        }
+    }
+
+    fun clearForgotResult() {
+        _forgot.update { it.copy(success = false, errorMsg = null) }
     }
 }
