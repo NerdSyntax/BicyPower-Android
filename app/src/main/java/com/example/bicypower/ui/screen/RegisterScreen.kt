@@ -31,8 +31,8 @@ import com.example.bicypower.ui.viewmodel.AuthViewModel
 
 @Composable
 fun RegisterScreenVm(
-    onRegisteredNavigateLogin: () -> Unit,
-    onGoLogin: () -> Unit
+    onRegisteredNavigateLogin: () -> Unit = {},  // ← default
+    onGoLogin: () -> Unit = {}                   // ← default
 ) {
     val vm: AuthViewModel = viewModel()
     val state by vm.register.collectAsStateWithLifecycle()

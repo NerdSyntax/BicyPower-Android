@@ -19,8 +19,8 @@ import com.example.bicypower.ui.viewmodel.ForgotUiState
 
 @Composable
 fun ForgotPasswordScreenVm(
-    onEmailSentNavigateLogin: () -> Unit,
-    onGoLogin: () -> Unit
+    onEmailSentNavigateLogin: () -> Unit = {},   // ← default
+    onGoLogin: () -> Unit = {}
 ) {
     val vm: AuthViewModel = viewModel()
     val state: ForgotUiState = vm.forgot.collectAsStateWithLifecycle().value
