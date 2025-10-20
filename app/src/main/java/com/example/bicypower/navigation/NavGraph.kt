@@ -3,68 +3,81 @@ package com.example.bicypower.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.bicypower.data.CartStore
+import com.example.bicypower.data.Product
 import com.example.bicypower.ui.components.AppBottomBar
 import com.example.bicypower.ui.screen.*
+import com.example.bicypower.ui.screen.admin.AdminHomeScreen
+import kotlinx.coroutines.flow.map
 
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
-
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-    val showBottomBar = currentRoute in bottomRoutes  // LOGIN/REGISTER/FORGOT no están en bottomRoutes
+    val showBottomBar = currentRoute in bottomRoutes
+
+    val cartCount by CartStore.items.map { it.values.sum() }.collectAsState(initial = 0)
 
     Scaffold(
-        bottomBar = { if (showBottomBar) AppBottomBar(navController = navController, cartCount = 0) }
+        bottomBar = { if (showBottomBar) AppBottomBar(navController = navController, cartCount = cartCount) }
     ) { inner ->
         NavHost(
             navController = navController,
-            startDestination = Routes.HOME,  // parte en Home
+            startDestination = Routes.LOGIN,
             modifier = Modifier.padding(inner)
         ) {
             // ---------- TABS ----------
-            composable(Routes.HOME) {
+            composable(Routes.HOME) { _: NavBackStackEntry ->
+                // HomeScreen te entrega Product -> usa p.id
                 HomeScreen(
-                    onGoLogin = { navController.navigate(Routes.LOGIN) },
-                    onGoRegister = { navController.navigate(Routes.REGISTER) }
+                    onOpenProduct = { id: String -> navController.navigate(Routes.product(id)) },
+                    onAddToCart   = { id: String -> CartStore.add(id) } as (Product) -> Unit
                 )
+
             }
-            composable(Routes.PROFILE)  { ProfileScreen() }
-            composable(Routes.CART)     { CartScreen() }
-            composable(Routes.SUPPORT)  { SupportScreen() }
-            composable(Routes.SETTINGS) {
-                SettingsScreen(
-                    onLogout = {
-                        // Ir a Login y limpiar la pila para que no vuelva a Home con back
-                        navController.navigate(Routes.LOGIN) {
-                            // Si tu versión soporta popUpTo(route:String), usa esta:
-                            popUpTo(Routes.HOME) { inclusive = true }
-                            // Si no, usa el startDestinationId:
-                            // popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                            launchSingleTop = true
-                        }
+            composable(Routes.PROFILE) { _: NavBackStackEntry -> ProfileScreen() }
+            composable(Routes.CART)    { _: NavBackStackEntry -> CartScreen() }
+            composable(Routes.SUPPORT) { _: NavBackStackEntry -> SupportScreen() }
+            composable(Routes.SETTINGS) { _: NavBackStackEntry ->
+                SettingsScreen(onLogout = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        launchSingleTop = true
                     }
-                )
+                })
             }
 
+            // ---------- ADMIN ----------
+            composable(Routes.ADMIN_HOME) { _: NavBackStackEntry -> AdminHomeScreen() }
+
             // ---------- AUTH ----------
-            composable(Routes.LOGIN) {
+            composable(Routes.LOGIN) { _: NavBackStackEntry ->
                 LoginScreenVm(
-                    onLoginOkNavigateHome = {
-                        navController.navigate(Routes.HOME) {
-                            popUpTo(Routes.LOGIN) { inclusive = true }
-                            launchSingleTop = true
+                    onLoginOk = { role ->
+                        when (role) {
+                            "ADMIN" -> navController.navigate(Routes.ADMIN_HOME) {
+                                popUpTo(Routes.LOGIN) { inclusive = true }; launchSingleTop = true
+                            }
+                            else -> navController.navigate(Routes.HOME) {
+                                popUpTo(Routes.LOGIN) { inclusive = true }; launchSingleTop = true
+                            }
                         }
                     },
                     onGoRegister = { navController.navigate(Routes.REGISTER) },
-                    onGoForgot = { navController.navigate(Routes.FORGOT) }
+                    onGoForgot   = { navController.navigate(Routes.FORGOT) }
                 )
             }
-            composable(Routes.REGISTER) {
+            composable(Routes.REGISTER) { _: NavBackStackEntry ->
                 RegisterScreenVm(
                     onRegisteredNavigateLogin = {
                         navController.popBackStack()
@@ -76,7 +89,7 @@ fun AppNavGraph() {
                     }
                 )
             }
-            composable(Routes.FORGOT) {
+            composable(Routes.FORGOT) { _: NavBackStackEntry ->
                 ForgotPasswordScreenVm(
                     onEmailSentNavigateLogin = {
                         navController.popBackStack()
@@ -87,6 +100,15 @@ fun AppNavGraph() {
                         navController.navigate(Routes.LOGIN) { launchSingleTop = true }
                     }
                 )
+            }
+
+            // ---------- PRODUCT DETAIL ----------
+            composable(
+                route = Routes.PRODUCT,
+                arguments = listOf(navArgument("id") { type = NavType.StringType })
+            ) { backStack: NavBackStackEntry ->
+                val id = backStack.arguments?.getString("id") ?: return@composable
+                ProductDetailScreen(productId = id)
             }
         }
     }

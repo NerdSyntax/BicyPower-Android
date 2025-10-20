@@ -1,218 +1,202 @@
 package com.example.bicypower.ui.viewmodel
 
-import androidx.lifecycle.ViewModel                       // Base de ViewModel
-import androidx.lifecycle.viewModelScope                  // Scope de corrutinas ligado al VM
-import kotlinx.coroutines.delay                           // Simulamos tareas async (IO/red)
-import kotlinx.coroutines.flow.MutableStateFlow           // Estado observable mutable
-import kotlinx.coroutines.flow.StateFlow                  // Exposición inmutable
-import kotlinx.coroutines.flow.update                     // Helper para actualizar flows
-import kotlinx.coroutines.launch                          // Lanzar corrutinas
-import com.example.bicypower.domain.validation.*          // ✅ validaciones
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.bicypower.data.local.database.BicyPowerDatabase
+import com.example.bicypower.data.repository.UserRepository
+import com.example.bicypower.domain.validation.validateConfirm
+import com.example.bicypower.domain.validation.validateEmail
+import com.example.bicypower.domain.validation.validateNameLettersOnly
+import com.example.bicypower.domain.validation.validatePhoneDigitsOnly
+import com.example.bicypower.domain.validation.validateStrongPassword
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
-// ----------------- ESTADOS DE UI (observable con StateFlow) -----------------
-
+// -------------------- LOGIN --------------------
 data class LoginUiState(
     val email: String = "",
     val pass: String = "",
     val emailError: String? = null,
     val passError: String? = null,
-    val isSubmitting: Boolean = false,
     val canSubmit: Boolean = false,
+    val isSubmitting: Boolean = false,
+    val errorMsg: String? = null,
     val success: Boolean = false,
-    val errorMsg: String? = null
+    val role: String? = null
 )
 
+// -------------------- REGISTER --------------------
 data class RegisterUiState(
     val name: String = "",
     val email: String = "",
     val phone: String = "",
     val pass: String = "",
     val confirm: String = "",
+
     val nameError: String? = null,
     val emailError: String? = null,
     val phoneError: String? = null,
     val passError: String? = null,
     val confirmError: String? = null,
-    val isSubmitting: Boolean = false,
+
     val canSubmit: Boolean = false,
-    val success: Boolean = false,
-    val errorMsg: String? = null
+    val isSubmitting: Boolean = false,
+    val errorMsg: String? = null,
+    val success: Boolean = false
 )
 
-// 👉 NUEVO: estado para Recuperar contraseña
+// -------------------- FORGOT --------------------
 data class ForgotUiState(
     val email: String = "",
     val emailError: String? = null,
     val isSubmitting: Boolean = false,
-    val success: Boolean = false,
-    val errorMsg: String? = null
+    val errorMsg: String? = null,
+    val success: Boolean = false
 )
 
-// ----------------- COLECCIÓN EN MEMORIA (solo para la demo) -----------------
+class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
-private data class DemoUser(
-    val name: String,
-    val email: String,
-    val phone: String,
-    val pass: String
-)
+    private val db = BicyPowerDatabase.getInstance(app)
+    private val repo = UserRepository(db.userDao())
 
-class AuthViewModel : ViewModel() {
+    // ---------- LOGIN ----------
+    private val _login = MutableStateFlow(LoginUiState())
+    val login = _login.asStateFlow()
 
-    companion object {
-        private val USERS = mutableListOf(
-            DemoUser(name = "Demo", email = "demo@duoc.cl", phone = "12345678", pass = "Demo123!")
+    fun clearLoginResult() { _login.value = _login.value.copy(success = false, errorMsg = null) }
+
+    fun onLoginEmailChange(v: String) {
+        val e = validateEmail(v)
+        _login.value = _login.value.copy(
+            email = v,
+            emailError = e,
+            canSubmit = canLogin(_login.value.copy(email = v, emailError = e))
         )
     }
 
-    private val _login = MutableStateFlow(LoginUiState())
-    val login: StateFlow<LoginUiState> = _login
-
-    private val _register = MutableStateFlow(RegisterUiState())
-    val register: StateFlow<RegisterUiState> = _register
-
-    // 👉 NUEVO: forgot
-    private val _forgot = MutableStateFlow(ForgotUiState())
-    val forgot: StateFlow<ForgotUiState> = _forgot
-
-    // ----------------- LOGIN -----------------
-
-    fun onLoginEmailChange(value: String) {
-        val v = value.trim()
-        _login.update { it.copy(email = v, emailError = validateEmail(v)) }
-        recomputeLoginCanSubmit()
+    fun onLoginPassChange(v: String) {
+        val err = if (v.isBlank()) "La contraseña es obligatoria" else null
+        _login.value = _login.value.copy(
+            pass = v,
+            passError = err,
+            canSubmit = canLogin(_login.value.copy(pass = v, passError = err))
+        )
     }
 
-    fun onLoginPassChange(value: String) {
-        val err = if (value.isBlank()) "La contraseña es obligatoria" else null
-        _login.update { it.copy(pass = value, passError = err) }
-        recomputeLoginCanSubmit()
-    }
-
-    private fun recomputeLoginCanSubmit() {
-        val s = _login.value
-        val can = s.emailError == null &&
-                s.passError == null &&
-                s.email.isNotBlank() &&
-                s.pass.isNotBlank()
-        _login.update { it.copy(canSubmit = can) }
-    }
+    private fun canLogin(s: LoginUiState): Boolean =
+        s.emailError == null && s.passError == null && s.email.isNotBlank() && s.pass.isNotBlank()
 
     fun submitLogin() {
         val s = _login.value
-        if (!s.canSubmit || s.isSubmitting) return
+        if (!canLogin(s) || s.isSubmitting) return
+
+        _login.value = s.copy(isSubmitting = true, errorMsg = null)
         viewModelScope.launch {
-            _login.update { it.copy(isSubmitting = true, errorMsg = null, success = false) }
-            delay(500)
-
-            val user = USERS.firstOrNull { it.email.equals(s.email, ignoreCase = true) }
-            val ok = user != null && user.pass == s.pass
-
-            _login.update {
-                it.copy(
-                    isSubmitting = false,
-                    success = ok,
-                    errorMsg = if (!ok) "Credenciales inválidas" else null
-                )
-            }
+            repo.login(s.email, s.pass)
+                .onSuccess { u ->
+                    _login.value = _login.value.copy(
+                        isSubmitting = false,
+                        success = true,
+                        role = u.role
+                    )
+                }
+                .onFailure { e ->
+                    _login.value = _login.value.copy(isSubmitting = false, errorMsg = e.message ?: "Error de login")
+                }
         }
     }
 
-    fun clearLoginResult() {
-        _login.update { it.copy(success = false, errorMsg = null) }
+    // ---------- REGISTER ----------
+    private val _register = MutableStateFlow(RegisterUiState())
+    val register = _register.asStateFlow()
+
+    fun clearRegisterResult() { _register.value = _register.value.copy(success = false, errorMsg = null) }
+
+    fun onRegNameChange(v: String) {
+        val e = validateNameLettersOnly(v)
+        _register.value = _register.value.copy(
+            name = v, nameError = e, canSubmit = canRegister(_register.value.copy(name = v, nameError = e))
+        )
+    }
+    fun onRegEmailChange(v: String) {
+        val e = validateEmail(v)
+        _register.value = _register.value.copy(
+            email = v, emailError = e, canSubmit = canRegister(_register.value.copy(email = v, emailError = e))
+        )
+    }
+    fun onRegPhoneChange(v: String) {
+        val e = validatePhoneDigitsOnly(v)
+        _register.value = _register.value.copy(
+            phone = v, phoneError = e, canSubmit = canRegister(_register.value.copy(phone = v, phoneError = e))
+        )
+    }
+    fun onRegPassChange(v: String) {
+        val e = validateStrongPassword(v)
+        val c = validateConfirm(v, _register.value.confirm)
+        _register.value = _register.value.copy(
+            pass = v, passError = e, confirmError = c, canSubmit = canRegister(_register.value.copy(pass = v, passError = e, confirmError = c))
+        )
+    }
+    fun onRegConfirmChange(v: String) {
+        val c = validateConfirm(_register.value.pass, v)
+        _register.value = _register.value.copy(
+            confirm = v, confirmError = c, canSubmit = canRegister(_register.value.copy(confirm = v, confirmError = c))
+        )
     }
 
-    // ----------------- REGISTRO -----------------
-
-    fun onNameChange(value: String) {
-        val filtered = value.filter { it.isLetter() || it.isWhitespace() }
-        _register.update { it.copy(name = filtered, nameError = validateNameLettersOnly(filtered)) }
-        recomputeRegisterCanSubmit()
-    }
-
-    fun onRegisterEmailChange(value: String) {
-        val v = value.trim()
-        _register.update { it.copy(email = v, emailError = validateEmail(v)) }
-        recomputeRegisterCanSubmit()
-    }
-
-    fun onPhoneChange(value: String) {
-        val digitsOnly = value.filter { it.isDigit() }
-        _register.update { it.copy(phone = digitsOnly, phoneError = validatePhoneDigitsOnly(digitsOnly)) }
-        recomputeRegisterCanSubmit()
-    }
-
-    fun onRegisterPassChange(value: String) {
-        _register.update { it.copy(pass = value, passError = validateStrongPassword(value)) }
-        _register.update { it.copy(confirmError = validateConfirm(it.pass, it.confirm)) }
-        recomputeRegisterCanSubmit()
-    }
-
-    fun onConfirmChange(value: String) {
-        _register.update { it.copy(confirm = value, confirmError = validateConfirm(it.pass, value)) }
-        recomputeRegisterCanSubmit()
-    }
-
-    private fun recomputeRegisterCanSubmit() {
-        val s = _register.value
-        val noErrors = listOf(s.nameError, s.emailError, s.phoneError, s.passError, s.confirmError).all { it == null }
-        val filled = s.name.isNotBlank() && s.email.isNotBlank() && s.phone.isNotBlank() && s.pass.isNotBlank() && s.confirm.isNotBlank()
-        _register.update { it.copy(canSubmit = noErrors && filled) }
-    }
+    private fun canRegister(s: RegisterUiState): Boolean =
+        s.nameError == null && s.emailError == null && s.phoneError == null &&
+                s.passError == null && s.confirmError == null &&
+                s.name.isNotBlank() && s.email.isNotBlank() && s.phone.isNotBlank() &&
+                s.pass.isNotBlank() && s.confirm.isNotBlank()
 
     fun submitRegister() {
         val s = _register.value
-        if (!s.canSubmit || s.isSubmitting) return
+        if (!canRegister(s) || s.isSubmitting) return
+
+        _register.value = s.copy(isSubmitting = true, errorMsg = null)
         viewModelScope.launch {
-            _register.update { it.copy(isSubmitting = true, errorMsg = null, success = false) }
-            delay(700)
-
-            val duplicated = USERS.any { it.email.equals(s.email, ignoreCase = true) }
-            if (duplicated) {
-                _register.update { it.copy(isSubmitting = false, success = false, errorMsg = "El usuario ya existe") }
-                return@launch
-            }
-
-            USERS.add(DemoUser(name = s.name.trim(), email = s.email.trim(), phone = s.phone.trim(), pass = s.pass))
-            _register.update { it.copy(isSubmitting = false, success = true, errorMsg = null) }
+            repo.register(s.name, s.email, s.phone, s.pass)
+                .onSuccess {
+                    _register.value = _register.value.copy(isSubmitting = false, success = true)
+                }
+                .onFailure { e ->
+                    _register.value = _register.value.copy(isSubmitting = false, errorMsg = e.message ?: "Error de registro")
+                }
         }
     }
 
-    fun clearRegisterResult() {
-        _register.update { it.copy(success = false, errorMsg = null) }
-    }
+    // ---------- FORGOT ----------
+    private val _forgot = MutableStateFlow(ForgotUiState())
+    val forgot = _forgot.asStateFlow()
 
-    // ----------------- RECUPERAR CONTRASEÑA (FORGOT) -----------------
+    fun clearForgotResult() { _forgot.value = _forgot.value.copy(success = false, errorMsg = null) }
 
-    fun onForgotEmailChange(value: String) {
-        val v = value.trim()
-        _forgot.update { it.copy(email = v, emailError = validateEmail(v)) }
+    fun onForgotEmailChange(v: String) {
+        val e = validateEmail(v)
+        _forgot.value = _forgot.value.copy(email = v, emailError = e)
     }
 
     fun submitForgot() {
         val s = _forgot.value
-        val err = validateEmail(s.email)
-        if (err != null || s.isSubmitting) {
-            _forgot.update { it.copy(emailError = err ?: it.emailError) }
+        val e = validateEmail(s.email)
+        if (e != null) {
+            _forgot.value = s.copy(emailError = e)
             return
         }
         viewModelScope.launch {
-            _forgot.update { it.copy(isSubmitting = true, errorMsg = null, success = false) }
-            delay(600)
-
-            val userExists = USERS.any { it.email.equals(s.email, ignoreCase = true) }
-            if (!userExists) {
-                _forgot.update { it.copy(isSubmitting = false, success = false, errorMsg = "No existe una cuenta con ese email") }
-                return@launch
+            _forgot.value = s.copy(isSubmitting = true, errorMsg = null)
+            // Simulación de envío de email (opcional: verifica existencia del usuario)
+            delay(700)
+            val exists = db.userDao().getByEmail(s.email.trim()) != null
+            if (exists) {
+                _forgot.value = _forgot.value.copy(isSubmitting = false, success = true)
+            } else {
+                _forgot.value = _forgot.value.copy(isSubmitting = false, errorMsg = "Correo no registrado")
             }
-
-            // Simulación: “enviamos” correo de reseteo
-            delay(400)
-            _forgot.update { it.copy(isSubmitting = false, success = true, errorMsg = null) }
         }
-    }
-
-    fun clearForgotResult() {
-        _forgot.update { it.copy(success = false, errorMsg = null) }
     }
 }

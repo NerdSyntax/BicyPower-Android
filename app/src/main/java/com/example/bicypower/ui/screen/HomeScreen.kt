@@ -1,94 +1,60 @@
 package com.example.bicypower.ui.screen
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.bicypower.data.CartStore
+import com.example.bicypower.data.Catalog
+import com.example.bicypower.data.Product
 
-@Composable // Pantalla Home (sin formularios, solo navegación/diseño)
+@Composable
 fun HomeScreen(
-    onGoLogin: () -> Unit,   // Acción a Login
-    onGoRegister: () -> Unit // Acción a Registro
+    onOpenProduct: (String) -> Unit = {},
+    onAddToCart: (Product) -> Unit = {}
 ) {
-    val bg = MaterialTheme.colorScheme.surfaceVariant // Fondo agradable para Home
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("BicyPower", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+        Spacer(Modifier.height(12.dp))
 
-    Box( // Contenedor a pantalla completa
-        modifier = Modifier
-            .fillMaxSize() // Ocupa todo
-            .background(bg) // Aplica fondo
-            .padding(16.dp), // Margen interior
-        contentAlignment = Alignment.Center // Centra contenido
-    ) {
-        Column( // Estructura vertical
-            horizontalAlignment = Alignment.CenterHorizontally // Centra hijos
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 160.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Cabecera como Row (ejemplo de estructura)
-            Row(
-                verticalAlignment = Alignment.CenterVertically // Centra vertical
-            ) {
-                Text( // Título Home
-                    text = "Home",
-                    style = MaterialTheme.typography.headlineSmall, // Estilo título
-                    fontWeight = FontWeight.SemiBold // Seminegrita
-                )
-                Spacer(Modifier.width(8.dp)) // Separación horizontal
-                AssistChip( // Chip decorativo (Material 3)
-                    onClick = {}, // Sin acción (demo)
-                    label = { Text("Navega desde arriba o aquí") } // Texto chip
+            items(Catalog.all, key = { it.id }) { p ->
+                ProductCard(
+                    product = p,
+                    onClick = { onOpenProduct(p.id) },
+                    onAdd = { onAddToCart(p) }
                 )
             }
+        }
+    }
+}
 
-            Spacer(Modifier.height(20.dp)) // Separación
-
-            // Tarjeta con un mini “hero”
-            ElevatedCard( // Card elevada para remarcar contenido
-                modifier = Modifier.fillMaxWidth() // Ancho completo
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp), // Margen interno de la card
-                    horizontalAlignment = Alignment.CenterHorizontally // Centrado
-                ) {
-                    Text(
-                        "Demostración de navegación con TopBar + Drawer + Botones",
-                        style = MaterialTheme.typography.titleMedium, // Estilo medio
-                        textAlign = TextAlign.Center // Alineación centrada
-                    )
-                    Spacer(Modifier.height(12.dp)) // Separación
-                    Text(
-                        "Usa la barra superior (íconos y menú), el menú lateral o estos botones.",
-                        style = MaterialTheme.typography.bodyMedium // Texto base
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(24.dp)) // Separación
-
-            // Botones de navegación principales
-            Row( // Dos botones en fila
-                horizontalArrangement = Arrangement.spacedBy(12.dp) // Espacio entre botones
-            ) {
-                Button(onClick = onGoLogin) { Text("Ir a Login") } // Navega a Login
-                OutlinedButton(onClick = onGoRegister) { Text("Ir a Registro") } // A Registro
-            }
+@Composable
+private fun ProductCard(
+    product: Product,
+    onClick: () -> Unit,
+    onAdd: () -> Unit
+) {
+    ElevatedCard(Modifier.clickable(onClick = onClick)) {
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(product.emoji, style = MaterialTheme.typography.displaySmall)
+            Spacer(Modifier.height(6.dp))
+            Text(product.name, fontWeight = FontWeight.SemiBold)
+            Text("$ ${"%,.0f".format(product.price)}", color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(6.dp))
+            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Agregar") }
         }
     }
 }

@@ -1,4 +1,3 @@
-
 package com.example.bicypower.ui.screen
 
 import android.app.Activity
@@ -17,7 +16,6 @@ fun SettingsScreen(
     var darkMode by remember { mutableStateOf(false) }
     var notifications by remember { mutableStateOf(true) }
     val activity = LocalContext.current as? Activity
-    var showLogoutDialog by remember { mutableStateOf(false) }
 
     Column(Modifier.padding(16.dp)) {
         Text("Settings", style = MaterialTheme.typography.titleLarge)
@@ -33,31 +31,11 @@ fun SettingsScreen(
 
         Divider()
 
-        Button(
-            onClick = { showLogoutDialog = true },
-            modifier = Modifier.padding(top = 12.dp)
-        ) { Text("Cerrar sesión") }
-
-        OutlinedButton(
-            onClick = { activity?.finishAffinity() },
-            modifier = Modifier.padding(top = 8.dp)
-        ) { Text("Salir de la app") }
-    }
-
-    if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Cerrar sesión") },
-            text = { Text("¿Seguro que quieres salir de tu cuenta?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showLogoutDialog = false
-                    onLogout()
-                }) { Text("Sí, cerrar sesión") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) { Text("Cancelar") }
-            }
-        )
+        Button(onClick = onLogout, modifier = Modifier.padding(top = 12.dp)) {
+            Text("Cerrar sesión")
+        }
+        OutlinedButton(onClick = { activity?.finishAffinity() }, modifier = Modifier.padding(top = 8.dp)) {
+            Text("Salir de la app")
+        }
     }
 }
