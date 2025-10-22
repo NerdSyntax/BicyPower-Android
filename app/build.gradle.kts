@@ -70,4 +70,29 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
+    //librerias nuevas
+    implementation("androidx.navigation:navigation-compose:2.9.5")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // Material icons (necesarios para Visibility / VisibilityOff)
+    implementation("androidx.compose.material:material-icons-extended")
+
+    // Room (SQLite) - runtime y extensiones KTX
+    implementation("androidx.room:room-runtime:2.6.1")    // <-- NUEVO
+    implementation("androidx.room:room-ktx:2.6.1")        // <-- NUEVO
+
+    // Compilador de Room vía KSP
+    ksp("androidx.room:room-compiler:2.6.1")               // <-- NUEVO
+
+    //cargar las imagenes para poder mostrarlas en la UI
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    //dataSotorage
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
 }

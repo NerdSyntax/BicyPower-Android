@@ -19,7 +19,15 @@ import com.example.bicypower.ui.components.AppBottomBar
 import com.example.bicypower.ui.screen.*
 import com.example.bicypower.ui.screen.admin.AdminHomeScreen
 import kotlinx.coroutines.flow.map
-
+import com.example.bicypower.ui.screen.HomeScreen
+import com.example.bicypower.ui.screen.SettingsScreen
+import com.example.bicypower.ui.screen.CartScreen
+import com.example.bicypower.ui.screen.ProfileScreen
+import com.example.bicypower.ui.screen.SupportScreen
+import com.example.bicypower.ui.screen.ProductDetailScreen
+import com.example.bicypower.ui.screen.LoginScreenVm
+import com.example.bicypower.ui.screen.RegisterScreenVm
+import com.example.bicypower.ui.screen.ForgotPasswordScreenVm
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
