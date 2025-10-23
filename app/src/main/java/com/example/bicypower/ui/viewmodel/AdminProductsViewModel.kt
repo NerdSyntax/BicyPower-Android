@@ -1,11 +1,13 @@
 package com.example.bicypower.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.bicypower.data.local.database.BicyPowerDatabase
 import com.example.bicypower.data.local.product.ProductEntity
+import com.example.bicypower.data.local.storage.copyImageToAppFiles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,11 +19,20 @@ import kotlinx.coroutines.withContext
 data class AdminProductsState(
     val items: List<ProductEntity> = emptyList(),
     val isLoading: Boolean = true,
+
+    // Crear
     val showCreate: Boolean = false,
     val pName: String = "", val pPrice: String = "",
     val pImage: String = "", val pDesc: String = "",
     val isSubmitting: Boolean = false, val errorMsg: String? = null,
+
+    // Editar precio
     val editId: Long? = null, val editPrice: String = "",
+
+    // Editar imagen
+    val editImageId: Long? = null, val editImageUrl: String = "",
+
+    // Borrar
     val confirmDeleteId: Long? = null
 )
 
@@ -45,9 +56,12 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // -------- Crear ----------
     fun openCreate() { _state.value = _state.value.copy(showCreate = true, errorMsg = null) }
-    fun closeCreate(){ _state.value = _state.value.copy(showCreate = false, isSubmitting = false, errorMsg = null,
-        pName = "", pPrice = "", pImage = "", pDesc = "") }
+    fun closeCreate(){ _state.value = _state.value.copy(
+        showCreate = false, isSubmitting = false, errorMsg = null,
+        pName = "", pPrice = "", pImage = "", pDesc = ""
+    ) }
     fun onName(v:String){ _state.value = _state.value.copy(pName=v) }
     fun onPrice(v:String){ _state.value = _state.value.copy(pPrice=v) }
     fun onImage(v:String){ _state.value = _state.value.copy(pImage=v) }
@@ -63,18 +77,29 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
             _state.value = _state.value.copy(isSubmitting = true, errorMsg = null)
             runCatching {
                 withContext(Dispatchers.IO) {
-                    dao.insert(ProductEntity(
-                        name = s.pName.trim(),
-                        description = s.pDesc.trim(),
-                        price = price,
-                        imageUrl = s.pImage.trim()
-                    ))
+                    val finalImageUrl = try {
+                        val uri = Uri.parse(s.pImage)
+                        if (uri != null && uri.scheme == "content") {
+                            copyImageToAppFiles(getApplication(), uri).toString()
+                        } else s.pImage.trim()
+                    } catch (_: Throwable) {
+                        s.pImage.trim()
+                    }
+                    dao.insert(
+                        ProductEntity(
+                            name = s.pName.trim(),
+                            description = s.pDesc.trim(),
+                            price = price,
+                            imageUrl = finalImageUrl
+                        )
+                    )
                 }
             }.onSuccess { closeCreate() }
                 .onFailure { _state.value = _state.value.copy(isSubmitting = false, errorMsg = it.message) }
         }
     }
 
+    // -------- Editar precio ----------
     fun openEditPrice(id: Long, current: Double) {
         _state.value = _state.value.copy(editId = id, editPrice = current.toString())
     }
@@ -90,6 +115,44 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // -------- Editar imagen ----------
+    fun openEditImage(id: Long, currentUrl: String) {
+        _state.value = _state.value.copy(editImageId = id, editImageUrl = currentUrl)
+    }
+    fun onEditImageUrl(v:String){ _state.value = _state.value.copy(editImageUrl = v) }
+    fun closeEditImage(){ _state.value = _state.value.copy(editImageId = null, editImageUrl = "") }
+
+    fun applyEditImage() {
+        val id = _state.value.editImageId ?: return
+        val urlRaw = _state.value.editImageUrl
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val finalUrl = try {
+                        val uri = Uri.parse(urlRaw)
+                        if (uri != null && uri.scheme == "content") {
+                            copyImageToAppFiles(getApplication(), uri).toString()
+                        } else urlRaw.trim()
+                    } catch (_: Throwable) {
+                        urlRaw.trim()
+                    }
+                    dao.updateImage(id, finalUrl)
+                }
+            }.onSuccess { closeEditImage() }
+                .onFailure { _state.value = _state.value.copy(errorMsg = it.message) }
+        }
+    }
+
+    fun clearImage() {
+        val id = _state.value.editImageId ?: return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { dao.updateImage(id, "") } }
+                .onSuccess { closeEditImage() }
+                .onFailure { _state.value = _state.value.copy(errorMsg = it.message) }
+        }
+    }
+
+    // -------- Eliminar ----------
     fun askDelete(id: Long){ _state.value = _state.value.copy(confirmDeleteId = id) }
     fun cancelDelete(){ _state.value = _state.value.copy(confirmDeleteId = null) }
     fun confirmDelete(){

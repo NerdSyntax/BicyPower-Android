@@ -1,5 +1,7 @@
 package com.example.bicypower.ui.screen.admin
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,6 +57,7 @@ fun AdminHomeScreen() {
             if (tab == 0) UsersSection(usersState, onDelete = { id -> vmUsers.askDelete(id) }) else ProductsSection(
                 prodState,
                 onEditPrice = { id, current -> vmProd.openEditPrice(id, current) },
+                onEditImage = { id, url -> vmProd.openEditImage(id, url) },
                 onDelete    = { id -> vmProd.askDelete(id) }
             )
 
@@ -78,7 +82,6 @@ fun AdminHomeScreen() {
             isSubmitting = usersState.isSubmitting, error = usersState.errorMsg
         )
     }
-    // Confirmación eliminar usuario
     if (usersState.confirmDeleteId != null) {
         AlertDialog(
             onDismissRequest = vmUsers::cancelDelete,
@@ -106,6 +109,15 @@ fun AdminHomeScreen() {
             onPrice = vmProd::onEditPrice,
             onDismiss = vmProd::closeEdit,
             onConfirm = vmProd::applyEditPrice
+        )
+    }
+    if (prodState.editImageId != null) {
+        EditImageDialog(
+            url = prodState.editImageUrl,
+            onUrl = vmProd::onEditImageUrl,
+            onClear = vmProd::clearImage,
+            onDismiss = vmProd::closeEditImage,
+            onConfirm = vmProd::applyEditImage
         )
     }
     if (prodState.confirmDeleteId != null) {
@@ -164,6 +176,7 @@ private fun UserRow(user: UserEntity, onDelete: () -> Unit) {
 private fun ProductsSection(
     state: com.example.bicypower.ui.viewmodel.AdminProductsState,
     onEditPrice: (Long, Double) -> Unit,
+    onEditImage: (Long, String) -> Unit,
     onDelete: (Long) -> Unit
 ) {
     when {
@@ -178,6 +191,7 @@ private fun ProductsSection(
                 ProductRow(
                     product = p,
                     onEditPrice = { onEditPrice(p.id, p.price) },
+                    onEditImage = { onEditImage(p.id, p.imageUrl) },
                     onDelete    = { onDelete(p.id) }
                 )
             }
@@ -186,7 +200,7 @@ private fun ProductsSection(
 }
 
 @Composable
-private fun ProductRow(product: ProductEntity, onEditPrice: () -> Unit, onDelete: () -> Unit) {
+private fun ProductRow(product: ProductEntity, onEditPrice: () -> Unit, onEditImage: () -> Unit, onDelete: () -> Unit) {
     ElevatedCard {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(model = product.imageUrl, contentDescription = product.name, modifier = Modifier.size(72.dp))
@@ -195,10 +209,11 @@ private fun ProductRow(product: ProductEntity, onEditPrice: () -> Unit, onDelete
                 Text(product.name, fontWeight = FontWeight.SemiBold)
                 Text("$ ${"%,.0f".format(product.price)}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 if (product.description.isNotBlank()) {
-                    Text(product.description, style = MaterialTheme.typography.labelMedium)
+                    Text(product.description, style = MaterialTheme.typography.labelMedium) // 👈 fix del typo
                 }
             }
             IconButton(onClick = onEditPrice) { Icon(Icons.Filled.Edit, contentDescription = "Editar precio") }
+            IconButton(onClick = onEditImage) { Icon(Icons.Filled.Image, contentDescription = "Editar imagen") }
             IconButton(onClick = onDelete)    { Icon(Icons.Filled.Delete, contentDescription = "Eliminar") }
         }
     }
@@ -213,6 +228,10 @@ private fun CreateProductDialog(
     onDismiss: () -> Unit, onCreate: () -> Unit,
     isSubmitting: Boolean, error: String?
 ) {
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) onImage(uri.toString())
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { Button(onClick = onCreate, enabled = !isSubmitting) { Text("Crear producto") } },
@@ -222,7 +241,8 @@ private fun CreateProductDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name,  onValueChange = onName,  label = { Text("Nombre") }, singleLine = true)
                 OutlinedTextField(value = price, onValueChange = onPrice, label = { Text("Precio") }, singleLine = true)
-                OutlinedTextField(value = image, onValueChange = onImage, label = { Text("URL de imagen") }, singleLine = true)
+                OutlinedTextField(value = image, onValueChange = onImage, label = { Text("URL de imagen o content://") }, singleLine = true)
+                TextButton(onClick = { pick.launch("image/*") }) { Text("Elegir desde galería") }
                 OutlinedTextField(value = desc,  onValueChange = onDesc,  label = { Text("Descripción") })
                 if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
             }
@@ -245,6 +265,40 @@ private fun EditPriceDialog(
                 value = price, onValueChange = onPrice, label = { Text("Precio") },
                 singleLine = true, modifier = Modifier.fillMaxWidth()
             )
+        }
+    )
+}
+
+@Composable
+private fun EditImageDialog(
+    url: String,
+    onUrl: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) onUrl(uri.toString())
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { Button(onClick = onConfirm) { Text("Guardar") } },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { pick.launch("image/*") }) { Text("Elegir imagen") }
+                TextButton(onClick = onClear) { Text("Quitar imagen") }
+                TextButton(onClick = onDismiss) { Text("Cancelar") }
+            }
+        },
+        title = { Text("Editar imagen") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (url.isNotBlank()) {
+                    AsyncImage(model = url, contentDescription = null, modifier = Modifier.fillMaxWidth().height(140.dp))
+                }
+                OutlinedTextField(value = url, onValueChange = onUrl, label = { Text("URL / content://") }, singleLine = true)
+            }
         }
     )
 }

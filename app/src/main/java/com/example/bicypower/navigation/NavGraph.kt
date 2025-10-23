@@ -28,6 +28,7 @@ import com.example.bicypower.ui.screen.ProductDetailScreen
 import com.example.bicypower.ui.screen.LoginScreenVm
 import com.example.bicypower.ui.screen.RegisterScreenVm
 import com.example.bicypower.ui.screen.ForgotPasswordScreenVm
+
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
@@ -49,9 +50,8 @@ fun AppNavGraph() {
                 // HomeScreen te entrega Product -> usa p.id
                 HomeScreen(
                     onOpenProduct = { id: String -> navController.navigate(Routes.product(id)) },
-                    onAddToCart   = { id: String -> CartStore.add(id) } as (Product) -> Unit
+                    onAddToCart   = { p: Product -> CartStore.add(p.id) }   // ✅ sin cast, recibe Product y usa p.id
                 )
-
             }
             composable(Routes.PROFILE) { _: NavBackStackEntry -> ProfileScreen() }
             composable(Routes.CART)    { _: NavBackStackEntry -> CartScreen() }

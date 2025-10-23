@@ -4,56 +4,51 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddShoppingCart
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.bicypower.data.Catalog
-import com.example.bicypower.data.Product
+import com.example.bicypower.data.CartStore
+import com.example.bicypower.data.local.product.ProductEntity
 import com.example.bicypower.data.local.storage.UserPreferences
 import com.example.bicypower.data.local.storage.createTempImageFile
 import com.example.bicypower.data.local.storage.fileUri
+import com.example.bicypower.ui.viewmodel.HomeViewModel
 import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
-    onOpenProduct: (String) -> Unit = {},
-    onAddToCart: (Product) -> Unit = {}
+    onOpenProduct: (String) -> Unit = {},     // si luego haces detalle para DB, usa p.id.toString()
+    onAddToCart: (com.example.bicypower.data.Product) -> Unit = {} // compat (ya no lo usamos aquí)
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { UserPreferences(context) }
 
-    // cargar/sincronizar foto desde DataStore
+    // FOTO DE PERFIL: cámara o galería
     val savedPhotoUri by prefs.photoUri.collectAsState(initial = null)
     var photoUriString by rememberSaveable { mutableStateOf<String?>(savedPhotoUri) }
     LaunchedEffect(savedPhotoUri) { photoUriString = savedPhotoUri }
@@ -63,80 +58,221 @@ fun HomeScreen(
         if (ok) {
             photoUriString = pendingCapture?.toString()
             scope.launch { prefs.setPhoto(photoUriString) }
-            Toast.makeText(context, "Foto guardada", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Foto tomada", Toast.LENGTH_SHORT).show()
         } else {
             pendingCapture = null
-            Toast.makeText(context, "No se tomó foto", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val pickFromGallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            photoUriString = uri.toString()
+            scope.launch { prefs.setPhoto(photoUriString) }
+            Toast.makeText(context, "Foto seleccionada", Toast.LENGTH_SHORT).show()
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("BicyPower", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
-        Spacer(Modifier.height(12.dp))
+    // Productos de Room
+    val vm: HomeViewModel = viewModel()
+    val state by vm.state.collectAsState()
 
-        // Sección Foto
-        ElevatedCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Tu foto", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(10.dp))
+    // BUSCADOR (local, simple)
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(state.items, query) {
+        if (query.isBlank()) state.items
+        else state.items.filter { it.name.contains(query, ignoreCase = true) }
+    }
 
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        // Header
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("Hola 👋", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Text("BicyPower", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+            }
+            // Avatar
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
                 if (photoUriString.isNullOrBlank()) {
-                    Text("Aún no tomas una foto")
+                    Icon(Icons.Filled.CameraAlt, contentDescription = "avatar", tint = MaterialTheme.colorScheme.primary)
                 } else {
                     AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(Uri.parse(photoUriString))
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Foto",
-                        modifier = Modifier.fillMaxWidth().height(160.dp),
+                        model = ImageRequest.Builder(context).data(Uri.parse(photoUriString)).crossfade(true).build(),
+                        contentDescription = "avatar",
+                        modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-                    Spacer(Modifier.height(10.dp))
                 }
+            }
+        }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = {
-                        val f = createTempImageFile(context)
-                        pendingCapture = fileUri(context, f)
-                        takePicture.launch(pendingCapture)
-                    }) {
-                        Text(if (photoUriString.isNullOrBlank()) "Tomar foto" else "Volver a tomar")
+        Spacer(Modifier.height(12.dp))
+
+        // Search
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            placeholder = { Text("Buscar bicicletas, cascos, luces...") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp)
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        // Banner
+        ElevatedCard(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Envío gratis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Celebra el pedaleo 🚴", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { /* promo */ }, shape = RoundedCornerShape(12.dp)) { Text("Ver ofertas") }
+                }
+                Spacer(Modifier.width(12.dp))
+                // imagen decorativa opcional: puedes poner un resource
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        // Acciones rápidas para foto
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ElevatedButton(
+                onClick = {
+                    val f = createTempImageFile(context)
+                    pendingCapture = fileUri(context, f)
+                    takePicture.launch(pendingCapture)
+                },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Filled.CameraAlt, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Tomar foto")
+            }
+            OutlinedButton(
+                onClick = { pickFromGallery.launch("image/*") },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Filled.Image, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Galería")
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        // Título de sección
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Productos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (!state.isLoading) Text("${filtered.size} ítems", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        when {
+            state.isLoading -> Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            filtered.isEmpty() -> Text("Aún no hay productos creados. Añádelos desde Admin.", color = Color.Gray)
+            else -> {
+                // “grid” manual 2 columnas
+                val rows = remember(filtered) { filtered.chunked(2) }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    rows.forEach { row ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            row.forEach { p ->
+                                ProductCardDb(
+                                    p,
+                                    onAdd = { CartStore.addDb(p) },          // ✅ carrito con productos de DB
+                                    onOpen = { onOpenProduct(p.id.toString()) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-
-        // Catálogo demo
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 160.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(Catalog.all, key = { it.id }) { p ->
-                ProductCard(product = p, onClick = { onOpenProduct(p.id) }, onAdd = { onAddToCart(p) })
-            }
-        }
+        Spacer(Modifier.height(18.dp))
     }
 }
 
 @Composable
-private fun ProductCard(
-    product: Product,
-    onClick: () -> Unit,
-    onAdd: () -> Unit
+private fun ProductCardDb(
+    p: ProductEntity,
+    onAdd: () -> Unit,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    ElevatedCard(Modifier.clickable(onClick = onClick)) {
-        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(product.emoji, style = MaterialTheme.typography.displaySmall)
-            Spacer(Modifier.height(6.dp))
-            Text(product.name, fontWeight = FontWeight.SemiBold)
-            Text("$ ${"%,.0f".format(product.price)}", color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(6.dp))
-            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Agregar") }
+    ElevatedCard(
+        modifier = modifier.clickable(onClick = onOpen),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            if (p.imageUrl.isNotBlank()) {
+                AsyncImage(
+                    model = p.imageUrl,
+                    contentDescription = p.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+            Text(p.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+            Text("$ ${"%,.0f".format(p.price)}", color = MaterialTheme.colorScheme.primary)
+            if (p.description.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(p.description, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = onAdd,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Filled.AddShoppingCart, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Agregar")
+            }
         }
     }
 }

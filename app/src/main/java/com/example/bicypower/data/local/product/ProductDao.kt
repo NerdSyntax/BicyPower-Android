@@ -15,6 +15,10 @@ interface ProductDao {
     @Query("UPDATE products SET price = :price WHERE id = :id")
     suspend fun updatePrice(id: Long, price: Double)
 
+    // 👇 NUEVO: actualizar solo la imagen
+    @Query("UPDATE products SET imageUrl = :url WHERE id = :id")
+    suspend fun updateImage(id: Long, url: String)
+
     @Query("DELETE FROM products WHERE id = :id")
     suspend fun deleteById(id: Long)
 
