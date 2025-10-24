@@ -10,5 +10,6 @@ data class ProductEntity(
     val description: String = "",
     val price: Double,
     val imageUrl: String = "",
-    val active: Boolean = true
+    val active: Boolean = true,
+    val stock: Int = 0                    // 👈 necesario para “Agotado” y edición de stock
 )

@@ -22,21 +22,33 @@ data class AdminProductsState(
 
     // Crear
     val showCreate: Boolean = false,
-    val pName: String = "", val pPrice: String = "",
-    val pImage: String = "", val pDesc: String = "",
-    val isSubmitting: Boolean = false, val errorMsg: String? = null,
+    val pName: String = "",
+    val pPrice: String = "",
+    val pImage: String = "",
+    val pDesc: String = "",
+    val pStock: String = "",                 // 👈 NUEVO: stock inicial como texto
+
+    val isSubmitting: Boolean = false,
+    val errorMsg: String? = null,
 
     // Editar precio
-    val editId: Long? = null, val editPrice: String = "",
+    val editId: Long? = null,
+    val editPrice: String = "",
 
     // Editar imagen
-    val editImageId: Long? = null, val editImageUrl: String = "",
+    val editImageId: Long? = null,
+    val editImageUrl: String = "",
+
+    // Editar stock
+    val editStockId: Long? = null,           // 👈 NUEVO
+    val editStock: String = "",              // 👈 NUEVO
 
     // Borrar
     val confirmDeleteId: Long? = null
 )
 
 class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
+
     private val dao = BicyPowerDatabase.getInstance(app).productDao()
 
     private val _state = MutableStateFlow(AdminProductsState())
@@ -46,7 +58,7 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             dao.observeAll()
                 .catch { e ->
-                    Log.e("AdminProductsVM","observeAll error",e)
+                    Log.e("AdminProductsVM", "observeAll error", e)
                     _state.value = _state.value.copy(isLoading = false, errorMsg = e.message)
                     emit(emptyList())
                 }
@@ -56,23 +68,36 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // -------- Crear ----------
-    fun openCreate() { _state.value = _state.value.copy(showCreate = true, errorMsg = null) }
-    fun closeCreate(){ _state.value = _state.value.copy(
-        showCreate = false, isSubmitting = false, errorMsg = null,
-        pName = "", pPrice = "", pImage = "", pDesc = ""
-    ) }
-    fun onName(v:String){ _state.value = _state.value.copy(pName=v) }
-    fun onPrice(v:String){ _state.value = _state.value.copy(pPrice=v) }
-    fun onImage(v:String){ _state.value = _state.value.copy(pImage=v) }
-    fun onDesc(v:String){ _state.value = _state.value.copy(pDesc=v) }
+    /* ------------------ Crear ------------------ */
+    fun openCreate() {
+        _state.value = _state.value.copy(showCreate = true, errorMsg = null)
+    }
+
+    fun closeCreate() {
+        _state.value = _state.value.copy(
+            showCreate = false,
+            isSubmitting = false,
+            errorMsg = null,
+            pName = "", pPrice = "", pImage = "", pDesc = "", pStock = ""
+        )
+    }
+
+    fun onName(v: String)  { _state.value = _state.value.copy(pName = v) }
+    fun onPrice(v: String) { _state.value = _state.value.copy(pPrice = v) }
+    fun onImage(v: String) { _state.value = _state.value.copy(pImage = v) }
+    fun onDesc(v: String)  { _state.value = _state.value.copy(pDesc = v) }
+    fun onStock(v: String) { _state.value = _state.value.copy(pStock = v) } // 👈 NUEVO
 
     fun create() {
         val s = _state.value
         val price = s.pPrice.replace(',', '.').toDoubleOrNull()
+        val stock = s.pStock.trim().toIntOrNull() ?: 0  // si está vacío, 0
+
         if (s.pName.isBlank() || price == null) {
-            _state.value = s.copy(errorMsg = "Nombre y precio válidos son obligatorios"); return
+            _state.value = s.copy(errorMsg = "Nombre y precio válidos son obligatorios")
+            return
         }
+
         viewModelScope.launch {
             _state.value = _state.value.copy(isSubmitting = true, errorMsg = null)
             runCatching {
@@ -85,46 +110,52 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
                     } catch (_: Throwable) {
                         s.pImage.trim()
                     }
+
                     dao.insert(
                         ProductEntity(
                             name = s.pName.trim(),
                             description = s.pDesc.trim(),
                             price = price,
-                            imageUrl = finalImageUrl
+                            imageUrl = finalImageUrl,
+                            stock = stock.coerceAtLeast(0)
                         )
                     )
                 }
             }.onSuccess { closeCreate() }
-                .onFailure { _state.value = _state.value.copy(isSubmitting = false, errorMsg = it.message) }
+                .onFailure {
+                    _state.value = _state.value.copy(isSubmitting = false, errorMsg = it.message)
+                }
         }
     }
 
-    // -------- Editar precio ----------
+    /* --------------- Editar precio --------------- */
     fun openEditPrice(id: Long, current: Double) {
         _state.value = _state.value.copy(editId = id, editPrice = current.toString())
     }
-    fun onEditPrice(v:String){ _state.value = _state.value.copy(editPrice=v) }
-    fun closeEdit(){ _state.value = _state.value.copy(editId=null, editPrice="") }
-    fun applyEditPrice(){
+    fun onEditPrice(v: String) { _state.value = _state.value.copy(editPrice = v) }
+    fun closeEdit() { _state.value = _state.value.copy(editId = null, editPrice = "") }
+    fun applyEditPrice() {
         val id = _state.value.editId ?: return
         val price = _state.value.editPrice.replace(',', '.').toDoubleOrNull() ?: return
         viewModelScope.launch {
-            runCatching { withContext(Dispatchers.IO){ dao.updatePrice(id, price) } }
-                .onSuccess { closeEdit() }
+            runCatching {
+                withContext(Dispatchers.IO) { dao.updatePrice(id, price) }
+            }.onSuccess { closeEdit() }
                 .onFailure { _state.value = _state.value.copy(errorMsg = it.message) }
         }
     }
 
-    // -------- Editar imagen ----------
+    /* --------------- Editar imagen --------------- */
     fun openEditImage(id: Long, currentUrl: String) {
         _state.value = _state.value.copy(editImageId = id, editImageUrl = currentUrl)
     }
-    fun onEditImageUrl(v:String){ _state.value = _state.value.copy(editImageUrl = v) }
-    fun closeEditImage(){ _state.value = _state.value.copy(editImageId = null, editImageUrl = "") }
+    fun onEditImageUrl(v: String) { _state.value = _state.value.copy(editImageUrl = v) }
+    fun closeEditImage() { _state.value = _state.value.copy(editImageId = null, editImageUrl = "") }
 
     fun applyEditImage() {
         val id = _state.value.editImageId ?: return
         val urlRaw = _state.value.editImageUrl
+
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -146,20 +177,44 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
     fun clearImage() {
         val id = _state.value.editImageId ?: return
         viewModelScope.launch {
-            runCatching { withContext(Dispatchers.IO) { dao.updateImage(id, "") } }
-                .onSuccess { closeEditImage() }
+            runCatching {
+                withContext(Dispatchers.IO) { dao.updateImage(id, "") }
+            }.onSuccess { closeEditImage() }
                 .onFailure { _state.value = _state.value.copy(errorMsg = it.message) }
         }
     }
 
-    // -------- Eliminar ----------
-    fun askDelete(id: Long){ _state.value = _state.value.copy(confirmDeleteId = id) }
-    fun cancelDelete(){ _state.value = _state.value.copy(confirmDeleteId = null) }
-    fun confirmDelete(){
+    /* --------------- Editar stock --------------- */
+    fun openEditStock(id: Long, currentStock: Int) {
+        _state.value = _state.value.copy(editStockId = id, editStock = currentStock.toString(), errorMsg = null)
+    }
+    fun onEditStock(v: String) { _state.value = _state.value.copy(editStock = v) }
+    fun closeEditStock() { _state.value = _state.value.copy(editStockId = null, editStock = "") }
+
+    fun applyEditStock() {
+        val id = _state.value.editStockId ?: return
+        val newStock = _state.value.editStock.trim().toIntOrNull()
+        if (newStock == null || newStock < 0) {
+            _state.value = _state.value.copy(errorMsg = "Stock inválido")
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) { dao.updateStock(id, newStock) }
+            }.onSuccess { closeEditStock() }
+                .onFailure { _state.value = _state.value.copy(errorMsg = it.message) }
+        }
+    }
+
+    /* ------------------ Eliminar ------------------ */
+    fun askDelete(id: Long) { _state.value = _state.value.copy(confirmDeleteId = id) }
+    fun cancelDelete() { _state.value = _state.value.copy(confirmDeleteId = null) }
+    fun confirmDelete() {
         val id = _state.value.confirmDeleteId ?: return
         viewModelScope.launch {
-            runCatching { withContext(Dispatchers.IO){ dao.deleteById(id) } }
-                .onSuccess { cancelDelete() }
+            runCatching {
+                withContext(Dispatchers.IO) { dao.deleteById(id) }
+            }.onSuccess { cancelDelete() }
                 .onFailure { _state.value = _state.value.copy(errorMsg = it.message) }
         }
     }

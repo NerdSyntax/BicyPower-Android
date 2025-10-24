@@ -12,7 +12,7 @@ import com.example.bicypower.data.local.user.UserEntity
 
 @Database(
     entities = [UserEntity::class, ProductEntity::class],
-    version = 10, // súbela si hace falta recrear DB
+    version = 11,               // 👈 súbela para recrear la DB
     exportSchema = true
 )
 abstract class BicyPowerDatabase : RoomDatabase() {
@@ -40,27 +40,32 @@ abstract class BicyPowerDatabase : RoomDatabase() {
                         private fun seed(db: SupportSQLiteDatabase) {
                             db.query("SELECT COUNT(*) FROM users").use {
                                 if (it.moveToFirst() && it.getInt(0) == 0) {
-                                    db.execSQL("""
+                                    db.execSQL(
+                                        """
                                         INSERT INTO users (name,email,phone,password,role) VALUES
                                         ('Admin','admin@bicy.cl','11111111','Admin123!','ADMIN'),
                                         ('Staff','staff@bicy.cl','22222222','Staff123!','STAFF'),
                                         ('Cliente','cliente@bicy.cl','33333333','Cliente123!','CLIENT')
-                                    """.trimIndent())
+                                        """.trimIndent()
+                                    )
                                 }
                             }
                             db.query("SELECT COUNT(*) FROM products").use {
                                 if (it.moveToFirst() && it.getInt(0) == 0) {
-                                    db.execSQL("""
-                                        INSERT INTO products (name,description,price,imageUrl,active) VALUES
-                                        ('Bicicleta Ruta Pro','Cuadro carbono, 11v',1499000,'https://picsum.photos/seed/road/800/600',1),
-                                        ('MTB Trail 29"','Suspensión delantera, 1x12',899000,'https://picsum.photos/seed/mtb/800/600',1),
-                                        ('Casco Aero','Certificación CE',79990,'https://picsum.photos/seed/helmet/800/600',1)
-                                    """.trimIndent())
+                                    // 👇 incluye la columna stock (último producto con stock 0 para “Agotado”)
+                                    db.execSQL(
+                                        """
+                                        INSERT INTO products (name,description,price,imageUrl,active,stock) VALUES
+                                        ('Bicicleta Ruta Pro','Cuadro carbono, 11v',1499000,'https://picsum.photos/seed/road/800/600',1, 5),
+                                        ('MTB Trail 29"','Suspensión delantera, 1x12',899000,'https://picsum.photos/seed/mtb/800/600',1, 3),
+                                ro','Certificación CE',79990,'https://picsum.photos/seed/helmet/800/600',1, 0)
+                                        """.trimIndent()
+                                    )
                                 }
                             }
                         }
                     })
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration() // recrea la DB al subir la versión
                     .build()
                     .also { INSTANCE = it }
             }

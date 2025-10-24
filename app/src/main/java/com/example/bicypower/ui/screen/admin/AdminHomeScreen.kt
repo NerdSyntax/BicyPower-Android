@@ -54,12 +54,17 @@ fun AdminHomeScreen() {
                 Tab(selected = tab==1, onClick = { tab=1 }, text = { Text("Productos") })
             }
 
-            if (tab == 0) UsersSection(usersState, onDelete = { id -> vmUsers.askDelete(id) }) else ProductsSection(
-                prodState,
-                onEditPrice = { id, current -> vmProd.openEditPrice(id, current) },
-                onEditImage = { id, url -> vmProd.openEditImage(id, url) },
-                onDelete    = { id -> vmProd.askDelete(id) }
-            )
+            if (tab == 0) {
+                UsersSection(usersState, onDelete = { id -> vmUsers.askDelete(id) })
+            } else {
+                ProductsSection(
+                    state = prodState,
+                    onEditPrice = { id, current -> vmProd.openEditPrice(id, current) },
+                    onEditImage = { id, url -> vmProd.openEditImage(id, url) },
+                    onEditStock = { id, stock -> vmProd.openEditStock(id, stock) },
+                    onDelete    = { id -> vmProd.askDelete(id) }
+                )
+            }
 
             if (prodState.errorMsg != null) {
                 Text(
@@ -95,12 +100,20 @@ fun AdminHomeScreen() {
     // ---- Productos ----
     if (prodState.showCreate) {
         CreateProductDialog(
-            name = prodState.pName, price = prodState.pPrice,
-            image = prodState.pImage, desc = prodState.pDesc,
-            onName = vmProd::onName, onPrice = vmProd::onPrice,
-            onImage = vmProd::onImage, onDesc = vmProd::onDesc,
-            onDismiss = vmProd::closeCreate, onCreate = vmProd::create,
-            isSubmitting = prodState.isSubmitting, error = prodState.errorMsg
+            name  = prodState.pName,
+            price = prodState.pPrice,
+            image = prodState.pImage,
+            desc  = prodState.pDesc,
+            stock = prodState.pStock,                // 👈 NUEVO
+            onName  = vmProd::onName,
+            onPrice = vmProd::onPrice,
+            onImage = vmProd::onImage,
+            onDesc  = vmProd::onDesc,
+            onStock = vmProd::onStock,               // 👈 NUEVO
+            onDismiss = vmProd::closeCreate,
+            onCreate  = vmProd::create,
+            isSubmitting = prodState.isSubmitting,
+            error        = prodState.errorMsg
         )
     }
     if (prodState.editId != null) {
@@ -118,6 +131,14 @@ fun AdminHomeScreen() {
             onClear = vmProd::clearImage,
             onDismiss = vmProd::closeEditImage,
             onConfirm = vmProd::applyEditImage
+        )
+    }
+    if (prodState.editStockId != null) {
+        EditStockDialog(
+            stock = prodState.editStock,
+            onStock  = vmProd::onEditStock,
+            onDismiss = vmProd::closeEditStock,
+            onConfirm = vmProd::applyEditStock
         )
     }
     if (prodState.confirmDeleteId != null) {
@@ -177,6 +198,7 @@ private fun ProductsSection(
     state: com.example.bicypower.ui.viewmodel.AdminProductsState,
     onEditPrice: (Long, Double) -> Unit,
     onEditImage: (Long, String) -> Unit,
+    onEditStock: (Long, Int) -> Unit,
     onDelete: (Long) -> Unit
 ) {
     when {
@@ -192,6 +214,7 @@ private fun ProductsSection(
                     product = p,
                     onEditPrice = { onEditPrice(p.id, p.price) },
                     onEditImage = { onEditImage(p.id, p.imageUrl) },
+                    onEditStock = { onEditStock(p.id, p.stock) },   // 👈 NUEVO
                     onDelete    = { onDelete(p.id) }
                 )
             }
@@ -200,21 +223,60 @@ private fun ProductsSection(
 }
 
 @Composable
-private fun ProductRow(product: ProductEntity, onEditPrice: () -> Unit, onEditImage: () -> Unit, onDelete: () -> Unit) {
+private fun ProductRow(
+    product: ProductEntity,
+    onEditPrice: () -> Unit,
+    onEditImage: () -> Unit,
+    onEditStock: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+
     ElevatedCard {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(model = product.imageUrl, contentDescription = product.name, modifier = Modifier.size(72.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(product.name, fontWeight = FontWeight.SemiBold)
-                Text("$ ${"%,.0f".format(product.price)}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    "$ ${"%,.0f".format(product.price)}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(onClick = {}, label = { Text("Stock: ${product.stock}") })
+                    if (!product.active) AssistChip(onClick = {}, label = { Text("Inactivo") })
+                }
                 if (product.description.isNotBlank()) {
-                    Text(product.description, style = MaterialTheme.typography.labelMedium) // 👈 fix del typo
+                    Text(product.description, style = MaterialTheme.typography.labelMedium)
                 }
             }
-            IconButton(onClick = onEditPrice) { Icon(Icons.Filled.Edit, contentDescription = "Editar precio") }
-            IconButton(onClick = onEditImage) { Icon(Icons.Filled.Image, contentDescription = "Editar imagen") }
-            IconButton(onClick = onDelete)    { Icon(Icons.Filled.Delete, contentDescription = "Eliminar") }
+
+            // Un solo botón/menú de acciones
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Acciones")
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Editar precio") },
+                        onClick = { menuOpen = false; onEditPrice() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Editar imagen (galería)") },
+                        onClick = { menuOpen = false; onEditImage() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Editar stock") },
+                        onClick = { menuOpen = false; onEditStock() }
+                    )
+                    Divider()
+                    DropdownMenuItem(
+                        text = { Text("Eliminar") },
+                        onClick = { menuOpen = false; onDelete() }
+                    )
+                }
+            }
         }
     }
 }
@@ -222,11 +284,20 @@ private fun ProductRow(product: ProductEntity, onEditPrice: () -> Unit, onEditIm
 /* ---------- DIÁLOGOS (PRODUCTOS) ---------- */
 @Composable
 private fun CreateProductDialog(
-    name: String, price: String, image: String, desc: String,
-    onName: (String) -> Unit, onPrice: (String) -> Unit,
-    onImage: (String) -> Unit, onDesc: (String) -> Unit,
-    onDismiss: () -> Unit, onCreate: () -> Unit,
-    isSubmitting: Boolean, error: String?
+    name: String,
+    price: String,
+    image: String,
+    desc: String,
+    stock: String,                                // 👈 NUEVO
+    onName: (String) -> Unit,
+    onPrice: (String) -> Unit,
+    onImage: (String) -> Unit,
+    onDesc: (String) -> Unit,
+    onStock: (String) -> Unit,                    // 👈 NUEVO
+    onDismiss: () -> Unit,
+    onCreate: () -> Unit,
+    isSubmitting: Boolean,
+    error: String?
 ) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) onImage(uri.toString())
@@ -244,6 +315,7 @@ private fun CreateProductDialog(
                 OutlinedTextField(value = image, onValueChange = onImage, label = { Text("URL de imagen o content://") }, singleLine = true)
                 TextButton(onClick = { pick.launch("image/*") }) { Text("Elegir desde galería") }
                 OutlinedTextField(value = desc,  onValueChange = onDesc,  label = { Text("Descripción") })
+                OutlinedTextField(value = stock, onValueChange = onStock, label = { Text("Stock inicial") }, singleLine = true) // 👈 NUEVO
                 if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
             }
         }
@@ -299,6 +371,30 @@ private fun EditImageDialog(
                 }
                 OutlinedTextField(value = url, onValueChange = onUrl, label = { Text("URL / content://") }, singleLine = true)
             }
+        }
+    )
+}
+
+@Composable
+private fun EditStockDialog(
+    stock: String,
+    onStock: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { Button(onClick = onConfirm) { Text("Guardar") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+        title = { Text("Editar stock") },
+        text = {
+            OutlinedTextField(
+                value = stock,
+                onValueChange = onStock,
+                label = { Text("Cantidad") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     )
 }

@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.bicypower.data.CartStore
+import com.example.bicypower.data.CartStore // ← deja tu import tal y como lo tenías
 import com.example.bicypower.data.local.product.ProductEntity
 import com.example.bicypower.data.local.storage.UserPreferences
 import com.example.bicypower.data.local.storage.createTempImageFile
@@ -41,14 +41,13 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
-    onOpenProduct: (String) -> Unit = {},     // si luego haces detalle para DB, usa p.id.toString()
-    onAddToCart: (com.example.bicypower.data.Product) -> Unit = {} // compat (ya no lo usamos aquí)
+    onOpenProduct: (String) -> Unit = {},
+    onAddToCart: (com.example.bicypower.data.Product) -> Unit = {} // se mantiene, aunque no lo usemos aquí
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { UserPreferences(context) }
 
-    // FOTO DE PERFIL: cámara o galería
     val savedPhotoUri by prefs.photoUri.collectAsState(initial = null)
     var photoUriString by rememberSaveable { mutableStateOf<String?>(savedPhotoUri) }
     LaunchedEffect(savedPhotoUri) { photoUriString = savedPhotoUri }
@@ -71,11 +70,17 @@ fun HomeScreen(
         }
     }
 
-    // Productos de Room
     val vm: HomeViewModel = viewModel()
     val state by vm.state.collectAsState()
 
-    // BUSCADOR (local, simple)
+    // 👇 CAMBIO: mostrar mensaje del VM
+    LaunchedEffect(state.errorMsg) {
+        state.errorMsg?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            vm.clearError()
+        }
+    }
+
     var query by remember { mutableStateOf("") }
     val filtered = remember(state.items, query) {
         if (query.isBlank()) state.items
@@ -89,7 +94,7 @@ fun HomeScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        // Header
+        // HEADER (igual que ya lo tenías)
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -99,7 +104,6 @@ fun HomeScreen(
                 Text("Hola 👋", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 Text("BicyPower", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
             }
-            // Avatar
             Box(
                 Modifier
                     .size(48.dp)
@@ -122,7 +126,6 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Search
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -135,7 +138,6 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Banner
         ElevatedCard(
             Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -154,13 +156,11 @@ fun HomeScreen(
                     Button(onClick = { /* promo */ }, shape = RoundedCornerShape(12.dp)) { Text("Ver ofertas") }
                 }
                 Spacer(Modifier.width(12.dp))
-                // imagen decorativa opcional: puedes poner un resource
             }
         }
 
         Spacer(Modifier.height(14.dp))
 
-        // Acciones rápidas para foto
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ElevatedButton(
                 onClick = {
@@ -188,7 +188,6 @@ fun HomeScreen(
 
         Spacer(Modifier.height(18.dp))
 
-        // Título de sección
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -206,7 +205,6 @@ fun HomeScreen(
             }
             filtered.isEmpty() -> Text("Aún no hay productos creados. Añádelos desde Admin.", color = Color.Gray)
             else -> {
-                // “grid” manual 2 columnas
                 val rows = remember(filtered) { filtered.chunked(2) }
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     rows.forEach { row ->
@@ -216,8 +214,11 @@ fun HomeScreen(
                         ) {
                             row.forEach { p ->
                                 ProductCardDb(
-                                    p,
-                                    onAdd = { CartStore.addDb(p) },          // ✅ carrito con productos de DB
+                                    p = p,
+                                    onAdd = {
+                                        // 👇 CAMBIO: valida stock con VM y SI OK, agrega con tu CartStore actual
+                                        vm.addToCart(p) { CartStore.addDb(p) }
+                                    },
                                     onOpen = { onOpenProduct(p.id.toString()) },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -259,19 +260,25 @@ private fun ProductCardDb(
             }
             Text(p.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
             Text("$ ${"%,.0f".format(p.price)}", color = MaterialTheme.colorScheme.primary)
-            if (p.description.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(p.description, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+
+            // 👇 CAMBIO: mostrar stock/agotado
+            Spacer(Modifier.height(4.dp))
+            if (p.stock <= 0) {
+                AssistChip(onClick = {}, label = { Text("Agotado") })
+            } else {
+                AssistChip(onClick = {}, label = { Text("Stock: ${p.stock}") })
             }
+
             Spacer(Modifier.height(10.dp))
             Button(
                 onClick = onAdd,
+                enabled = p.stock > 0, // 👈 CAMBIO: deshabilitar sin stock
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Filled.AddShoppingCart, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
-                Text("Agregar")
+                Text(if (p.stock > 0) "Agregar" else "Agotado")
             }
         }
     }
