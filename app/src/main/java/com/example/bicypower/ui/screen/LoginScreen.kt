@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -20,6 +21,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bicypower.ui.viewmodel.AuthViewModel
 import com.example.bicypower.ui.viewmodel.LoginUiState
+import com.example.bicypower.data.local.storage.UserPreferences
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreenVm(
@@ -30,14 +33,27 @@ fun LoginScreenVm(
     val vm: AuthViewModel = viewModel()
     val state: LoginUiState = vm.login.collectAsStateWithLifecycle().value
 
+    val context = LocalContext.current
+    val prefs = remember { UserPreferences(context) }
+    val scope = rememberCoroutineScope()
+
     if (state.success) {
-        val role = state.role ?: "CLIENT"
-        vm.clearLoginResult()
-        onLoginOk(role)            // navegamos según rol
+        val role = state.role ?: "USER"
+        val name = state.userName ?: ""
+        val email = state.userEmail ?: state.email // fallback
+        LaunchedEffect(role, name, email) {
+            scope.launch {
+                // ✅ Persistimos sesión e identidad ANTES de navegar
+                prefs.setSession(true, role)
+                prefs.setIdentity(name, email)
+            }.join()
+            vm.clearLoginResult()
+            onLoginOk(role)
+        }
         return
     }
 
-    // ---------- UI simple integrada (para evitar "Unresolved reference LoginScreen") ----------
+    // ---------- UI ----------
     val focus = LocalFocusManager.current
     var showPass by remember { mutableStateOf(false) }
 

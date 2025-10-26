@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,8 +23,11 @@ import com.example.bicypower.ui.components.dialogs.CreateStaffDialog
 import com.example.bicypower.ui.viewmodel.AdminProductsViewModel
 import com.example.bicypower.ui.viewmodel.AdminUsersViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminHomeScreen() {
+fun AdminHomeScreen(
+    onLogout: () -> Unit
+) {
     val vmUsers: AdminUsersViewModel = viewModel()
     val vmProd: AdminProductsViewModel = viewModel()
 
@@ -35,6 +37,22 @@ fun AdminHomeScreen() {
     var tab by remember { mutableStateOf(0) } // 0: Usuarios, 1: Productos
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "👑  Panel ADMIN",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                },
+                actions = {
+                    TextButton(onClick = onLogout) {
+                        Text("Cerrar sesión")
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { if (tab==0) vmUsers.openCreate() else vmProd.openCreate() }) {
                 Icon(Icons.Filled.Add, contentDescription = "Agregar")
@@ -42,13 +60,6 @@ fun AdminHomeScreen() {
         }
     ) { inner ->
         Column(Modifier.fillMaxSize().padding(inner)) {
-            Text(
-                "Panel ADMIN",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp)
-            )
-
             TabRow(selectedTabIndex = tab) {
                 Tab(selected = tab==0, onClick = { tab=0 }, text = { Text("Usuarios") })
                 Tab(selected = tab==1, onClick = { tab=1 }, text = { Text("Productos") })
@@ -104,12 +115,12 @@ fun AdminHomeScreen() {
             price = prodState.pPrice,
             image = prodState.pImage,
             desc  = prodState.pDesc,
-            stock = prodState.pStock,                // 👈 NUEVO
+            stock = prodState.pStock,
             onName  = vmProd::onName,
             onPrice = vmProd::onPrice,
             onImage = vmProd::onImage,
             onDesc  = vmProd::onDesc,
-            onStock = vmProd::onStock,               // 👈 NUEVO
+            onStock = vmProd::onStock,
             onDismiss = vmProd::closeCreate,
             onCreate  = vmProd::create,
             isSubmitting = prodState.isSubmitting,
@@ -214,7 +225,7 @@ private fun ProductsSection(
                     product = p,
                     onEditPrice = { onEditPrice(p.id, p.price) },
                     onEditImage = { onEditImage(p.id, p.imageUrl) },
-                    onEditStock = { onEditStock(p.id, p.stock) },   // 👈 NUEVO
+                    onEditStock = { onEditStock(p.id, p.stock) },
                     onDelete    = { onDelete(p.id) }
                 )
             }
@@ -252,7 +263,6 @@ private fun ProductRow(
                 }
             }
 
-            // Un solo botón/menú de acciones
             Box {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(Icons.Filled.Edit, contentDescription = "Acciones")
@@ -288,12 +298,12 @@ private fun CreateProductDialog(
     price: String,
     image: String,
     desc: String,
-    stock: String,                                // 👈 NUEVO
+    stock: String,
     onName: (String) -> Unit,
     onPrice: (String) -> Unit,
     onImage: (String) -> Unit,
     onDesc: (String) -> Unit,
-    onStock: (String) -> Unit,                    // 👈 NUEVO
+    onStock: (String) -> Unit,
     onDismiss: () -> Unit,
     onCreate: () -> Unit,
     isSubmitting: Boolean,
@@ -315,7 +325,7 @@ private fun CreateProductDialog(
                 OutlinedTextField(value = image, onValueChange = onImage, label = { Text("URL de imagen o content://") }, singleLine = true)
                 TextButton(onClick = { pick.launch("image/*") }) { Text("Elegir desde galería") }
                 OutlinedTextField(value = desc,  onValueChange = onDesc,  label = { Text("Descripción") })
-                OutlinedTextField(value = stock, onValueChange = onStock, label = { Text("Stock inicial") }, singleLine = true) // 👈 NUEVO
+                OutlinedTextField(value = stock, onValueChange = onStock, label = { Text("Stock inicial") }, singleLine = true)
                 if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
             }
         }

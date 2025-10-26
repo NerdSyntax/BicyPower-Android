@@ -1,12 +1,13 @@
 package com.example.bicypower.ui.components
 
-
 import androidx.compose.material.icons.Icons // Conjunto de íconos Material
 import androidx.compose.material.icons.filled.Home // Ícono Home
 import androidx.compose.material.icons.filled.AccountCircle // Ícono Login
 import androidx.compose.material.icons.filled.Menu // Ícono hamburguesa
 import androidx.compose.material.icons.filled.MoreVert // Ícono 3 puntitos (overflow)
 import androidx.compose.material.icons.filled.Person // Ícono Registro
+import androidx.compose.material.icons.filled.VerifiedUser // Admin
+import androidx.compose.material.icons.filled.Badge // Staff
 import androidx.compose.material3.CenterAlignedTopAppBar // TopAppBar centrada
 import androidx.compose.material3.DropdownMenu // Menú desplegable
 import androidx.compose.material3.DropdownMenuItem // Opción del menú
@@ -17,64 +18,79 @@ import androidx.compose.material3.MaterialTheme // Tema Material
 import androidx.compose.material3.Text // Texto
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.* // remember / mutableStateOf
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.bicypower.data.local.storage.UserPreferences
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable // Composable reutilizable: barra superior
+@Composable
 fun AppTopBar(
     onOpenDrawer: () -> Unit, // Abre el drawer (hamburguesa)
     onHome: () -> Unit,       // Navega a Home
     onLogin: () -> Unit,      // Navega a Login
     onRegister: () -> Unit    // Navega a Registro
 ) {
-    //lo que hace es crear una variable de estado recordada que le dice a la interfaz
-    // si el menú desplegable de 3 puntitos debe estar visible (true) o oculto (false).
     var showMenu by remember { mutableStateOf(false) } // Estado del menú overflow
 
-    CenterAlignedTopAppBar( // Barra alineada al centro
+    // NUEVO: estado de sesión para pintar los 3 íconos de rol
+    val context = LocalContext.current
+    val prefs = remember { UserPreferences(context) }
+    val isLoggedIn by prefs.isLoggedIn.collectAsState(initial = false)
+    val role by prefs.role.collectAsState(initial = "")
+
+    CenterAlignedTopAppBar(
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
             containerColor = MaterialTheme.colorScheme.primary
         ),
-        title = { // Slot del título
+        title = {
             Text(
-                text = "Demo Navegación Compose", // Título visible
-                style = MaterialTheme.typography.titleLarge, // Estilo grande
-                maxLines = 1,              // asegura una sola línea Int.MAX_VALUE   // permite varias líneas
-                overflow = TextOverflow.Ellipsis // agrega "..." si no cabe
-
+                text = "BicyPower",
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         },
-        navigationIcon = { // Ícono a la izquierda (hamburguesa)
-            IconButton(onClick = onOpenDrawer) { // Al presionar, abre drawer
-                Icon(imageVector = Icons.Filled.Menu, contentDescription = "Menú") // Ícono
+        navigationIcon = {
+            IconButton(onClick = onOpenDrawer) {
+                Icon(imageVector = Icons.Filled.Menu, contentDescription = "Menú")
             }
         },
-        actions = { // Acciones a la derecha (íconos + overflow)
-            IconButton(onClick = onHome) { // Ir a Home
-                Icon(Icons.Filled.Home, contentDescription = "Home") // Ícono Home
+        actions = {
+            // --------- NUEVO: 3 íconos de rol con color activo/inactivo ---------
+            val active = MaterialTheme.colorScheme.onPrimary
+            val inactive = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
+            fun tintFor(r: String) = if (isLoggedIn && role == r) active else inactive
+
+            Icon(Icons.Filled.VerifiedUser, contentDescription = "Admin", tint = tintFor("ADMIN"))
+            Icon(Icons.Filled.Badge,       contentDescription = "Staff", tint = tintFor("STAFF"))
+            Icon(Icons.Filled.Person,      contentDescription = "Usuario", tint = tintFor("CLIENT"))
+            // --------------------------------------------------------------------
+
+            IconButton(onClick = onHome) {
+                Icon(Icons.Filled.Home, contentDescription = "Home")
             }
-            IconButton(onClick = onLogin) { // Ir a Login
-                Icon(Icons.Filled.AccountCircle, contentDescription = "Login") // Ícono Login
+            IconButton(onClick = onLogin) {
+                Icon(Icons.Filled.AccountCircle, contentDescription = "Login")
             }
-            IconButton(onClick = onRegister) { // Ir a Registro
-                Icon(Icons.Filled.Person, contentDescription = "Registro") // Ícono Registro
+            IconButton(onClick = onRegister) {
+                Icon(Icons.Filled.Person, contentDescription = "Registro")
             }
-            IconButton(onClick = { showMenu = true }) { // Abre menú overflow
-                Icon(Icons.Filled.MoreVert, contentDescription = "Más") // Ícono 3 puntitos
+            IconButton(onClick = { showMenu = true }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "Más")
             }
             DropdownMenu(
-                expanded = showMenu, // Si está abierto
-                onDismissRequest = { showMenu = false } // Cierra al tocar fuera
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
             ) {
-                DropdownMenuItem( // Opción Home
-                    text = { Text("Home") }, // Texto opción
-                    onClick = { showMenu = false; onHome() } // Navega y cierra
+                DropdownMenuItem(
+                    text = { Text("Home") },
+                    onClick = { showMenu = false; onHome() }
                 )
-                DropdownMenuItem( // Opción Login
+                DropdownMenuItem(
                     text = { Text("Login") },
                     onClick = { showMenu = false; onLogin() }
                 )
-                DropdownMenuItem( // Opción Registro
+                DropdownMenuItem(
                     text = { Text("Registro") },
                     onClick = { showMenu = false; onRegister() }
                 )

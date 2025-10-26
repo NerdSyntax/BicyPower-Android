@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// -------------------- LOGIN --------------------
 data class LoginUiState(
     val email: String = "",
     val pass: String = "",
@@ -25,10 +24,11 @@ data class LoginUiState(
     val isSubmitting: Boolean = false,
     val errorMsg: String? = null,
     val success: Boolean = false,
-    val role: String? = null
+    val role: String? = null,
+    val userName: String? = null,   // 👈 NUEVO
+    val userEmail: String? = null   // 👈 NUEVO
 )
 
-// -------------------- REGISTER --------------------
 data class RegisterUiState(
     val name: String = "",
     val email: String = "",
@@ -48,7 +48,6 @@ data class RegisterUiState(
     val success: Boolean = false
 )
 
-// -------------------- FORGOT --------------------
 data class ForgotUiState(
     val email: String = "",
     val emailError: String? = null,
@@ -100,7 +99,9 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                     _login.value = _login.value.copy(
                         isSubmitting = false,
                         success = true,
-                        role = u.role
+                        role = u.role,
+                        userName = u.name,     // 👈 llenamos nombre del usuario
+                        userEmail = u.email    // 👈 y su email real
                     )
                 }
                 .onFailure { e ->
@@ -189,7 +190,6 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             _forgot.value = s.copy(isSubmitting = true, errorMsg = null)
-            // Simulación de envío de email (opcional: verifica existencia del usuario)
             delay(700)
             val exists = db.userDao().getByEmail(s.email.trim()) != null
             if (exists) {

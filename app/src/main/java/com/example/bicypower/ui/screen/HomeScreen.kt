@@ -1,9 +1,5 @@
 package com.example.bicypower.ui.screen
 
-import android.net.Uri
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,9 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddShoppingCart
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,52 +25,40 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.bicypower.data.CartStore // ← deja tu import tal y como lo tenías
+import com.example.bicypower.data.CartStore
+import com.example.bicypower.data.Product
 import com.example.bicypower.data.local.product.ProductEntity
 import com.example.bicypower.data.local.storage.UserPreferences
-import com.example.bicypower.data.local.storage.createTempImageFile
-import com.example.bicypower.data.local.storage.fileUri
 import com.example.bicypower.ui.viewmodel.HomeViewModel
 import kotlinx.coroutines.launch
+import android.net.Uri
 
 @Composable
 fun HomeScreen(
     onOpenProduct: (String) -> Unit = {},
-    onAddToCart: (com.example.bicypower.data.Product) -> Unit = {} // se mantiene, aunque no lo usemos aquí
+    onAddToCart: (Product) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { UserPreferences(context) }
 
+    // Foto persistida (solo para mostrar avatar, ya no hay botones de cámara en Home)
     val savedPhotoUri by prefs.photoUri.collectAsState(initial = null)
     var photoUriString by rememberSaveable { mutableStateOf<String?>(savedPhotoUri) }
     LaunchedEffect(savedPhotoUri) { photoUriString = savedPhotoUri }
 
-    var pendingCapture: Uri? by remember { mutableStateOf<Uri?>(null) }
-    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        if (ok) {
-            photoUriString = pendingCapture?.toString()
-            scope.launch { prefs.setPhoto(photoUriString) }
-            Toast.makeText(context, "Foto tomada", Toast.LENGTH_SHORT).show()
-        } else {
-            pendingCapture = null
-        }
-    }
-    val pickFromGallery = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            photoUriString = uri.toString()
-            scope.launch { prefs.setPhoto(photoUriString) }
-            Toast.makeText(context, "Foto seleccionada", Toast.LENGTH_SHORT).show()
-        }
-    }
+    // Estado de sesión/rol para el icono
+    val role by prefs.role.collectAsState(initial = "")
+    val isLoggedIn by prefs.isLoggedIn.collectAsState(initial = false)
 
     val vm: HomeViewModel = viewModel()
     val state by vm.state.collectAsState()
 
-    // 👇 CAMBIO: mostrar mensaje del VM
     LaunchedEffect(state.errorMsg) {
         state.errorMsg?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            // si hay error al agregar al carrito por stock, mostrar toast
+            // (si prefieres Snackbar, cámbialo)
+            // Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             vm.clearError()
         }
     }
@@ -94,16 +76,33 @@ fun HomeScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        // HEADER (igual que ya lo tenías)
+        // ===== Header =====
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text("Hola 👋", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                Text("BicyPower", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Ícono único:
+                // - ADMIN => corona (emoji)
+                // - USER/otro => persona; azul si logeado, gris si no
+                if (role == "ADMIN") {
+                    Text("👑", style = MaterialTheme.typography.headlineSmall)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Admin", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                } else {
+                    val tint = if (isLoggedIn) Color(0xFF1E88E5) else MaterialTheme.colorScheme.outline
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = if (isLoggedIn) "Usuario logueado" else "Usuario no logueado",
+                        tint = tint
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("BicyPower", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                }
             }
+
+            // Avatar (muestra foto guardada si existe; ya no hay acciones aquí)
             Box(
                 Modifier
                     .size(48.dp)
@@ -112,10 +111,17 @@ fun HomeScreen(
                 contentAlignment = Alignment.Center
             ) {
                 if (photoUriString.isNullOrBlank()) {
-                    Icon(Icons.Filled.CameraAlt, contentDescription = "avatar", tint = MaterialTheme.colorScheme.primary)
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = "avatar",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 } else {
                     AsyncImage(
-                        model = ImageRequest.Builder(context).data(Uri.parse(photoUriString)).crossfade(true).build(),
+                        model = ImageRequest.Builder(context)
+                            .data(Uri.parse(photoUriString))
+                            .crossfade(true)
+                            .build(),
                         contentDescription = "avatar",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -129,7 +135,6 @@ fun HomeScreen(
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             placeholder = { Text("Buscar bicicletas, cascos, luces...") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -159,33 +164,6 @@ fun HomeScreen(
             }
         }
 
-        Spacer(Modifier.height(14.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ElevatedButton(
-                onClick = {
-                    val f = createTempImageFile(context)
-                    pendingCapture = fileUri(context, f)
-                    takePicture.launch(pendingCapture)
-                },
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text("Tomar foto")
-            }
-            OutlinedButton(
-                onClick = { pickFromGallery.launch("image/*") },
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Filled.Image, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text("Galería")
-            }
-        }
-
         Spacer(Modifier.height(18.dp))
 
         Row(
@@ -194,16 +172,27 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Productos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            if (!state.isLoading) Text("${filtered.size} ítems", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+            if (!state.isLoading) {
+                Text(
+                    "${filtered.size} ítems",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Gray
+                )
+            }
         }
 
         Spacer(Modifier.height(10.dp))
 
         when {
-            state.isLoading -> Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            state.isLoading -> Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(160.dp),
+                contentAlignment = Alignment.Center
+            ) { CircularProgressIndicator() }
+
             filtered.isEmpty() -> Text("Aún no hay productos creados. Añádelos desde Admin.", color = Color.Gray)
+
             else -> {
                 val rows = remember(filtered) { filtered.chunked(2) }
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -216,7 +205,7 @@ fun HomeScreen(
                                 ProductCardDb(
                                     p = p,
                                     onAdd = {
-                                        // 👇 CAMBIO: valida stock con VM y SI OK, agrega con tu CartStore actual
+                                        // validamos y restamos stock en VM; luego usamos tu CartStore
                                         vm.addToCart(p) { CartStore.addDb(p) }
                                     },
                                     onOpen = { onOpenProduct(p.id.toString()) },
@@ -258,10 +247,9 @@ private fun ProductCardDb(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            Text(p.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+            Text(p.name, maxLines = 1, overflow = TextOverflow.Clip, fontWeight = FontWeight.SemiBold)
             Text("$ ${"%,.0f".format(p.price)}", color = MaterialTheme.colorScheme.primary)
 
-            // 👇 CAMBIO: mostrar stock/agotado
             Spacer(Modifier.height(4.dp))
             if (p.stock <= 0) {
                 AssistChip(onClick = {}, label = { Text("Agotado") })
@@ -272,7 +260,7 @@ private fun ProductCardDb(
             Spacer(Modifier.height(10.dp))
             Button(
                 onClick = onAdd,
-                enabled = p.stock > 0, // 👈 CAMBIO: deshabilitar sin stock
+                enabled = p.stock > 0,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
