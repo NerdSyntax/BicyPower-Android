@@ -12,7 +12,7 @@ import com.example.bicypower.data.local.user.UserEntity
 
 @Database(
     entities = [UserEntity::class, ProductEntity::class],
-    version = 11,               // 👈 súbela para recrear la DB
+    version = 12,                 // súbela para recrear la DB
     exportSchema = true
 )
 abstract class BicyPowerDatabase : RoomDatabase() {
@@ -32,14 +32,18 @@ abstract class BicyPowerDatabase : RoomDatabase() {
                 )
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
-                            super.onCreate(db); seed(db)
+                            super.onCreate(db)
+                            seed(db)
                         }
                         override fun onOpen(db: SupportSQLiteDatabase) {
-                            super.onOpen(db); seed(db)
+                            super.onOpen(db)
+                            // Si solo quieres sembrar una vez, comenta la siguiente línea:
+                            seed(db)
                         }
                         private fun seed(db: SupportSQLiteDatabase) {
-                            db.query("SELECT COUNT(*) FROM users").use {
-                                if (it.moveToFirst() && it.getInt(0) == 0) {
+                            // ---- Usuarios ----
+                            db.query("SELECT COUNT(*) FROM users").use { c ->
+                                if (c.moveToFirst() && c.getInt(0) == 0) {
                                     db.execSQL(
                                         """
                                         INSERT INTO users (name,email,phone,password,role) VALUES
@@ -50,15 +54,15 @@ abstract class BicyPowerDatabase : RoomDatabase() {
                                     )
                                 }
                             }
-                            db.query("SELECT COUNT(*) FROM products").use {
-                                if (it.moveToFirst() && it.getInt(0) == 0) {
-                                    // 👇 incluye la columna stock (último producto con stock 0 para “Agotado”)
+                            // ---- Productos ----
+                            db.query("SELECT COUNT(*) FROM products").use { c ->
+                                if (c.moveToFirst() && c.getInt(0) == 0) {
                                     db.execSQL(
                                         """
                                         INSERT INTO products (name,description,price,imageUrl,active,stock) VALUES
-                                        ('Bicicleta Ruta Pro','Cuadro carbono, 11v',1499000,'https://picsum.photos/seed/road/800/600',1, 5),
-                                        ('MTB Trail 29"','Suspensión delantera, 1x12',899000,'https://picsum.photos/seed/mtb/800/600',1, 3),
-                                ro','Certificación CE',79990,'https://picsum.photos/seed/helmet/800/600',1, 0)
+                                        ('Bicicleta Ruta Pro','Cuadro carbono, 11v',1499000,'https://picsum.photos/seed/road/800/600',1,5),
+                                        ('MTB Trail 29"','Suspensión delantera, 1x12',899000,'https://picsum.photos/seed/mtb/800/600',1,3),
+                                        ('Casco Pro','Certificación CE',79990,'https://picsum.photos/seed/helmet/800/600',1,0)
                                         """.trimIndent()
                                     )
                                 }
