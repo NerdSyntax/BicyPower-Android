@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.bicypower.data.local.database.BicyPowerDatabase
+import com.example.bicypower.data.local.storage.UserPreferences            // ✅ import
 import com.example.bicypower.data.repository.UserRepository
 import com.example.bicypower.domain.validation.validateConfirm
 import com.example.bicypower.domain.validation.validateEmail
@@ -25,8 +26,8 @@ data class LoginUiState(
     val errorMsg: String? = null,
     val success: Boolean = false,
     val role: String? = null,
-    val userName: String? = null,   // 👈 NUEVO
-    val userEmail: String? = null   // 👈 NUEVO
+    val userName: String? = null,
+    val userEmail: String? = null
 )
 
 data class RegisterUiState(
@@ -61,11 +62,16 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     private val db = BicyPowerDatabase.getInstance(app)
     private val repo = UserRepository(db.userDao())
 
+    // ✅ Preferencias persistentes (DataStore)
+    private val prefs = UserPreferences(app)
+
     // ---------- LOGIN ----------
     private val _login = MutableStateFlow(LoginUiState())
     val login = _login.asStateFlow()
 
-    fun clearLoginResult() { _login.value = _login.value.copy(success = false, errorMsg = null) }
+    fun clearLoginResult() {
+        _login.value = _login.value.copy(success = false, errorMsg = null)
+    }
 
     fun onLoginEmailChange(v: String) {
         val e = validateEmail(v)
@@ -86,7 +92,8 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun canLogin(s: LoginUiState): Boolean =
-        s.emailError == null && s.passError == null && s.email.isNotBlank() && s.pass.isNotBlank()
+        s.emailError == null && s.passError == null &&
+                s.email.isNotBlank() && s.pass.isNotBlank()
 
     fun submitLogin() {
         val s = _login.value
@@ -96,16 +103,23 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             repo.login(s.email, s.pass)
                 .onSuccess { u ->
+                    // ✅ Persistir sesión e identidad para Profile/Header/etc.
+                    prefs.setSession(true, u.role)
+                    prefs.setIdentity(u.name, u.email)
+
                     _login.value = _login.value.copy(
                         isSubmitting = false,
                         success = true,
                         role = u.role,
-                        userName = u.name,     // 👈 llenamos nombre del usuario
-                        userEmail = u.email    // 👈 y su email real
+                        userName = u.name,
+                        userEmail = u.email
                     )
                 }
                 .onFailure { e ->
-                    _login.value = _login.value.copy(isSubmitting = false, errorMsg = e.message ?: "Error de login")
+                    _login.value = _login.value.copy(
+                        isSubmitting = false,
+                        errorMsg = e.message ?: "Error de login"
+                    )
                 }
         }
     }
@@ -114,37 +128,56 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     private val _register = MutableStateFlow(RegisterUiState())
     val register = _register.asStateFlow()
 
-    fun clearRegisterResult() { _register.value = _register.value.copy(success = false, errorMsg = null) }
+    fun clearRegisterResult() {
+        _register.value = _register.value.copy(success = false, errorMsg = null)
+    }
 
     fun onRegNameChange(v: String) {
         val e = validateNameLettersOnly(v)
         _register.value = _register.value.copy(
-            name = v, nameError = e, canSubmit = canRegister(_register.value.copy(name = v, nameError = e))
+            name = v,
+            nameError = e,
+            canSubmit = canRegister(_register.value.copy(name = v, nameError = e))
         )
     }
+
     fun onRegEmailChange(v: String) {
         val e = validateEmail(v)
         _register.value = _register.value.copy(
-            email = v, emailError = e, canSubmit = canRegister(_register.value.copy(email = v, emailError = e))
+            email = v,
+            emailError = e,
+            canSubmit = canRegister(_register.value.copy(email = v, emailError = e))
         )
     }
+
     fun onRegPhoneChange(v: String) {
         val e = validatePhoneDigitsOnly(v)
         _register.value = _register.value.copy(
-            phone = v, phoneError = e, canSubmit = canRegister(_register.value.copy(phone = v, phoneError = e))
+            phone = v,
+            phoneError = e,
+            canSubmit = canRegister(_register.value.copy(phone = v, phoneError = e))
         )
     }
+
     fun onRegPassChange(v: String) {
         val e = validateStrongPassword(v)
         val c = validateConfirm(v, _register.value.confirm)
         _register.value = _register.value.copy(
-            pass = v, passError = e, confirmError = c, canSubmit = canRegister(_register.value.copy(pass = v, passError = e, confirmError = c))
+            pass = v,
+            passError = e,
+            confirmError = c,
+            canSubmit = canRegister(
+                _register.value.copy(pass = v, passError = e, confirmError = c)
+            )
         )
     }
+
     fun onRegConfirmChange(v: String) {
         val c = validateConfirm(_register.value.pass, v)
         _register.value = _register.value.copy(
-            confirm = v, confirmError = c, canSubmit = canRegister(_register.value.copy(confirm = v, confirmError = c))
+            confirm = v,
+            confirmError = c,
+            canSubmit = canRegister(_register.value.copy(confirm = v, confirmError = c))
         )
     }
 
@@ -165,7 +198,10 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                     _register.value = _register.value.copy(isSubmitting = false, success = true)
                 }
                 .onFailure { e ->
-                    _register.value = _register.value.copy(isSubmitting = false, errorMsg = e.message ?: "Error de registro")
+                    _register.value = _register.value.copy(
+                        isSubmitting = false,
+                        errorMsg = e.message ?: "Error de registro"
+                    )
                 }
         }
     }
@@ -174,7 +210,9 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     private val _forgot = MutableStateFlow(ForgotUiState())
     val forgot = _forgot.asStateFlow()
 
-    fun clearForgotResult() { _forgot.value = _forgot.value.copy(success = false, errorMsg = null) }
+    fun clearForgotResult() {
+        _forgot.value = _forgot.value.copy(success = false, errorMsg = null)
+    }
 
     fun onForgotEmailChange(v: String) {
         val e = validateEmail(v)
@@ -192,10 +230,10 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             _forgot.value = s.copy(isSubmitting = true, errorMsg = null)
             delay(700)
             val exists = db.userDao().getByEmail(s.email.trim()) != null
-            if (exists) {
-                _forgot.value = _forgot.value.copy(isSubmitting = false, success = true)
+            _forgot.value = if (exists) {
+                _forgot.value.copy(isSubmitting = false, success = true)
             } else {
-                _forgot.value = _forgot.value.copy(isSubmitting = false, errorMsg = "Correo no registrado")
+                _forgot.value.copy(isSubmitting = false, errorMsg = "Correo no registrado")
             }
         }
     }

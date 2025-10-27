@@ -87,7 +87,7 @@ fun HomeScreen(
                 // - ADMIN => corona (emoji)
                 // - USER/otro => persona; azul si logeado, gris si no
                 if (role == "ADMIN") {
-                    Text("👑", style = MaterialTheme.typography.headlineSmall)
+                    Text("", style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.width(8.dp))
                     Text("Admin", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
                 } else {
@@ -156,7 +156,7 @@ fun HomeScreen(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Envío gratis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Celebra el pedaleo 🚴", style = MaterialTheme.typography.bodyMedium)
+                    Text("Celebra el pedaleo ", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(8.dp))
                     Button(onClick = { /* promo */ }, shape = RoundedCornerShape(12.dp)) { Text("Ver ofertas") }
                 }

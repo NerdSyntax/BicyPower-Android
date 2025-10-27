@@ -6,7 +6,7 @@ data class Product(
     val name: String,
     val description: String,
     val price: Double,
-    val emoji: String = "🚲"
+    val emoji: String = ""
 )
 
 object Catalog {

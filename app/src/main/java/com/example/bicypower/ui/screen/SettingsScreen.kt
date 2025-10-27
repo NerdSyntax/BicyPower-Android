@@ -1,73 +1,92 @@
 package com.example.bicypower.ui.screen
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onLogout: () -> Unit
 ) {
-    var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
-    val setPhoto: (String?) -> Unit = { photoUri = it }
+    val context = LocalContext.current
+    val versionName = try {
+        val pm: PackageManager = context.packageManager
+        val pkg = pm.getPackageInfo(context.packageName, 0)
+        pkg.versionName ?: "-"
+    } catch (_: Exception) { "-" }
 
-    val pickImage = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        setPhoto(uri?.toString())
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text("Ajustes", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(16.dp))
-
-        if (!photoUri.isNullOrEmpty()) {
-            AsyncImage(
-                model = photoUri,
-                contentDescription = "Foto",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-            )
-            Spacer(Modifier.height(8.dp))
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("Ajustes") })
         }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { pickImage.launch("image/*") }) { Text("Cambiar foto") }
-            OutlinedButton(onClick = { setPhoto(null) }) { Text("Quitar foto") }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        Button(
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth()
+    ) { inner ->
+        LazyColumn(
+            contentPadding = PaddingValues(
+                top = inner.calculateTopPadding(),
+                start = 16.dp,
+                end = 16.dp,
+                bottom = 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Cerrar sesión")
+
+            // ===== Cuenta =====
+            item {
+                ElevatedCard {
+                    ListItem(headlineContent = { Text("Cuenta") })
+                    HorizontalDivider()
+                    ListItem(
+                        leadingContent = { Icon(Icons.AutoMirrored.Filled.Logout, null) },
+                        headlineContent = { Text("Cerrar sesión") },
+                        supportingContent = { Text("Sal de tu cuenta en este dispositivo.") },
+                        trailingContent = { Button(onClick = onLogout) { Text("Cerrar sesión") } }
+                    )
+                }
+            }
+
+            // ===== Información / Políticas =====
+            item {
+                ElevatedCard {
+                    ListItem(headlineContent = { Text("Información") })
+                    HorizontalDivider()
+                    ListItem(
+                        leadingContent = { Icon(Icons.Filled.Info, null) },
+                        headlineContent = { Text("Acerca de") },
+                        supportingContent = {
+                            Text("BicyPower • versión $versionName", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    )
+                    HorizontalDivider()
+                    ListItem(
+                        leadingContent = { Icon(Icons.Filled.Rule, null) },
+                        headlineContent = { Text("Términos y condiciones") },
+                        supportingContent = { Text("Políticas, garantías y devoluciones.") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
         }
     }
 }

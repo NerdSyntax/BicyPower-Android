@@ -24,7 +24,7 @@ fun CartScreen(onCheckout: () -> Unit = {}) {
 
     if (detailed.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Tu carrito está vacío 🙃")
+            Text("Tu carrito está vacío ")
         }
         return
     }

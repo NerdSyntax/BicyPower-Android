@@ -41,7 +41,7 @@ fun AdminHomeScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "👑  Panel ADMIN",
+                        text = "  Panel ADMIN",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold
                     )

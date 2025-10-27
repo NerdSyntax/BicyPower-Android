@@ -32,7 +32,7 @@ object CartStore {
             name = p.name,
             description = p.description,
             price = p.price,
-            emoji = "🚲"
+            emoji = ""
         )
         add(id, qty)
     }
