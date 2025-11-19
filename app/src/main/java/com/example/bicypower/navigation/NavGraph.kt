@@ -33,9 +33,10 @@ fun AppNavGraph() {
 
     val startDest = remember(isLoggedIn, role) {
         when {
-            !isLoggedIn     -> Routes.LOGIN
-            role == "ADMIN" -> Routes.ADMIN_HOME
-            else            -> Routes.HOME
+            !isLoggedIn        -> Routes.LOGIN
+            role == "ADMIN"    -> Routes.ADMIN_HOME
+            role == "STAFF"    -> Routes.STAFF_HOME
+            else               -> Routes.HOME   // CLIENT u otro
         }
     }
 
@@ -48,7 +49,12 @@ fun AppNavGraph() {
 
         Scaffold(
             bottomBar = {
-                if (showBottomBar) AppBottomBar(navController = navController, cartCount = cartCount)
+                if (showBottomBar) {
+                    AppBottomBar(
+                        navController = navController,
+                        cartCount = cartCount
+                    )
+                }
             }
         ) { inner ->
             NavHost(
@@ -56,15 +62,20 @@ fun AppNavGraph() {
                 startDestination = startDest,
                 modifier = Modifier.padding(inner)
             ) {
-                // ---------- TABS ----------
+
+                // ----------------- HOME CLIENTE -----------------
                 composable(Routes.HOME) {
                     HomeScreen(
-                        onOpenProduct = { id: String -> navController.navigate(Routes.product(id)) },
-                        onAddToCart   = { p: Product -> CartStore.add(p.id) }
+                        onOpenProduct = { id: String ->
+                            navController.navigate(Routes.product(id))
+                        },
+                        onAddToCart = { p: Product ->
+                            CartStore.add(p.id)
+                        }
                     )
                 }
 
-                // Profile ahora recibe lambdas para abrir subpantallas
+                // ----------------- PROFILE CLIENTE -----------------
                 composable(Routes.PROFILE) {
                     ProfileScreen(
                         onOpenOrders = { navController.navigate(Routes.ORDERS) },
@@ -73,9 +84,22 @@ fun AppNavGraph() {
                     )
                 }
 
-                composable(Routes.CART)    { CartScreen() }
-                composable(Routes.SUPPORT) { SupportScreen() }
+                // ----------------- CART -----------------
+                composable(Routes.CART) {
+                    CartScreen(
+                        onCheckout = {
+                            // Después de comprar, navegar a Mis pedidos
+                            navController.navigate(Routes.ORDERS)
+                        }
+                    )
+                }
 
+                // ----------------- SUPPORT -----------------
+                composable(Routes.SUPPORT) {
+                    SupportScreen()
+                }
+
+                // ----------------- SETTINGS -----------------
                 composable(Routes.SETTINGS) {
                     SettingsScreen(
                         onLogout = {
@@ -87,20 +111,20 @@ fun AppNavGraph() {
                                 }
                             }
                         },
-                        onChangePassword = {           // 👉 NUEVO
+                        onChangePassword = {
                             navController.navigate(Routes.CHANGE_PASSWORD)
                         }
                     )
                 }
 
-                // ---------- CAMBIAR CONTRASEÑA ----------
+                // ----------------- CHANGE PASSWORD -----------------
                 composable(Routes.CHANGE_PASSWORD) {
                     ChangePasswordScreen(
                         onBack = { navController.popBackStack() }
                     )
                 }
 
-                // ---------- ADMIN ----------
+                // ----------------- ADMIN -----------------
                 composable(Routes.ADMIN_HOME) {
                     AdminHomeScreen(
                         onLogout = {
@@ -115,25 +139,46 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ---------- AUTH ----------
+                // ----------------- STAFF -----------------
+                composable(Routes.STAFF_HOME) {
+                    StaffHomeScreen(
+                        onLogout = {
+                            scope.launch {
+                                prefs.logout()
+                                navController.navigate(Routes.LOGIN) {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    )
+                }
+
+                // ----------------- AUTH -----------------
                 composable(Routes.LOGIN) {
                     LoginScreenModern(
                         onLoginOk = { roleLogged ->
+                            // guardamos sesión
                             scope.launch { prefs.setSession(true, roleLogged) }
-                            if (roleLogged == "ADMIN") {
-                                navController.navigate(Routes.ADMIN_HOME) {
+
+                            // navegamos según rol
+                            when (roleLogged) {
+                                "ADMIN" -> navController.navigate(Routes.ADMIN_HOME) {
                                     popUpTo(Routes.LOGIN) { inclusive = true }
                                     launchSingleTop = true
                                 }
-                            } else {
-                                navController.navigate(Routes.HOME) {
+                                "STAFF" -> navController.navigate(Routes.STAFF_HOME) {
+                                    popUpTo(Routes.LOGIN) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                                else -> navController.navigate(Routes.HOME) {
                                     popUpTo(Routes.LOGIN) { inclusive = true }
                                     launchSingleTop = true
                                 }
                             }
                         },
                         onGoRegister = { navController.navigate(Routes.REGISTER) },
-                        onGoForgot   = { navController.navigate(Routes.FORGOT) }
+                        onGoForgot = { navController.navigate(Routes.FORGOT) }
                     )
                 }
 
@@ -163,7 +208,7 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ---------- PRODUCT DETAIL ----------
+                // ----------------- PRODUCT DETAIL -----------------
                 composable(
                     route = Routes.PRODUCT,
                     arguments = listOf(navArgument("id") { type = NavType.StringType })
@@ -176,13 +221,15 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ---------- PROFILE SUBPAGES (con botón atrás) ----------
+                // ----------------- PROFILE SUB SCREENS -----------------
                 composable(Routes.ORDERS) {
                     OrdersScreen(onBack = { navController.popBackStack() })
                 }
+
                 composable(Routes.ADDRESSES) {
                     AddressesScreen(onBack = { navController.popBackStack() })
                 }
+
                 composable(Routes.PAYMENTS) {
                     PaymentMethodsScreen(onBack = { navController.popBackStack() })
                 }

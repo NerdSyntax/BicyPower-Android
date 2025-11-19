@@ -25,14 +25,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.bicypower.data.repository.CheckoutState
 
 data class PaymentMethod(
     val id: Long,
@@ -48,10 +49,11 @@ private fun maskCard(number: String): String {
     return if (cleaned.length >= 4) "**** **** **** ${cleaned.takeLast(4)}" else "****"
 }
 
-@OptIn(ExperimentalMaterial3Api::class)                  // ✅ MATERIAL API
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentMethodsScreen(onBack: () -> Unit) {
     val cards = remember { mutableStateListOf<PaymentMethod>() }
+
     var titular by remember { mutableStateOf("") }
     var numero by remember { mutableStateOf("") }
     var month by remember { mutableStateOf("") }
@@ -79,8 +81,11 @@ fun PaymentMethodsScreen(onBack: () -> Unit) {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
                     OutlinedTextField(
-                        value = titular, onValueChange = { titular = it },
-                        label = { Text("Titular") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                        value = titular,
+                        onValueChange = { titular = it },
+                        label = { Text("Titular") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
@@ -88,19 +93,31 @@ fun PaymentMethodsScreen(onBack: () -> Unit) {
                         onValueChange = { numero = it.filter(Char::isDigit) },
                         label = { Text("Número de tarjeta") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), // ✅
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedTextField(value = month, onValueChange = { month = it.filter(Char::isDigit).take(2) },
-                            label = { Text("MM") }, singleLine = true, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = year, onValueChange = { year = it.filter(Char::isDigit).take(2) },
-                            label = { Text("AA") }, singleLine = true, modifier = Modifier.weight(1f))
                         OutlinedTextField(
-                            value = cvv, onValueChange = { cvv = it.filter(Char::isDigit).take(4) },
-                            label = { Text("CVV") }, singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), // ✅
+                            value = month,
+                            onValueChange = { month = it.filter(Char::isDigit).take(2) },
+                            label = { Text("MM") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = year,
+                            onValueChange = { year = it.filter(Char::isDigit).take(2) },
+                            label = { Text("AA") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = cvv,
+                            onValueChange = { cvv = it.filter(Char::isDigit).take(4) },
+                            label = { Text("CVV") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -117,6 +134,9 @@ fun PaymentMethodsScreen(onBack: () -> Unit) {
                                     cvv = cvv
                                 )
                             )
+                            // avisamos al estado global cuántas tarjetas hay
+                            CheckoutState.updatePaymentCount(cards.size)
+
                             titular = ""; numero = ""; month = ""; year = ""; cvv = ""
                         },
                         enabled = canSave,
@@ -137,9 +157,14 @@ fun PaymentMethodsScreen(onBack: () -> Unit) {
                         ElevatedCard {
                             ListItem(
                                 headlineContent = { Text(maskCard(c.numero)) },
-                                supportingContent = { Text("${c.titular}  •  Exp ${c.expMonth}/${c.expYear}") },
+                                supportingContent = {
+                                    Text("${c.titular}  •  Exp ${c.expMonth}/${c.expYear}")
+                                },
                                 trailingContent = {
-                                    IconButton(onClick = { cards.removeAll { it.id == c.id } }) {
+                                    IconButton(onClick = {
+                                        cards.removeAll { it.id == c.id }
+                                        CheckoutState.updatePaymentCount(cards.size)
+                                    }) {
                                         Icon(Icons.Filled.Delete, contentDescription = "Eliminar")
                                     }
                                 }
