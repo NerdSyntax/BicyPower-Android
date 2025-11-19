@@ -75,6 +75,7 @@ fun AppNavGraph() {
 
                 composable(Routes.CART)    { CartScreen() }
                 composable(Routes.SUPPORT) { SupportScreen() }
+
                 composable(Routes.SETTINGS) {
                     SettingsScreen(
                         onLogout = {
@@ -85,7 +86,17 @@ fun AppNavGraph() {
                                     launchSingleTop = true
                                 }
                             }
+                        },
+                        onChangePassword = {           // 👉 NUEVO
+                            navController.navigate(Routes.CHANGE_PASSWORD)
                         }
+                    )
+                }
+
+                // ---------- CAMBIAR CONTRASEÑA ----------
+                composable(Routes.CHANGE_PASSWORD) {
+                    ChangePasswordScreen(
+                        onBack = { navController.popBackStack() }
                     )
                 }
 
@@ -125,6 +136,7 @@ fun AppNavGraph() {
                         onGoForgot   = { navController.navigate(Routes.FORGOT) }
                     )
                 }
+
                 composable(Routes.REGISTER) {
                     RegisterScreenVm(
                         onRegisteredNavigateLogin = {
@@ -137,6 +149,7 @@ fun AppNavGraph() {
                         }
                     )
                 }
+
                 composable(Routes.FORGOT) {
                     ForgotPasswordScreenVm(
                         onEmailSentNavigateLogin = {

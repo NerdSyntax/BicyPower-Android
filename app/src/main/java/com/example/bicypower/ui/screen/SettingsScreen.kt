@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
@@ -29,7 +31,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +43,8 @@ import androidx.compose.ui.unit.dp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onChangePassword: () -> Unit   // 👉 NUEVO
 ) {
     val context = LocalContext.current
     val versionName = try {
@@ -51,12 +53,11 @@ fun SettingsScreen(
         pkg.versionName ?: "-"
     } catch (_: Exception) { "-" }
 
-    // Estado local para mostrar/ocultar confirmación
     var askLogout by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Ajustes") })
+            androidx.compose.material3.TopAppBar(title = { Text("Ajustes") })
         }
     ) { inner ->
         LazyColumn(
@@ -72,12 +73,26 @@ fun SettingsScreen(
             // ===== Cuenta =====
             item {
                 ElevatedCard(
-                    modifier = Modifier.animateContentSize() // animación suave de la altura
+                    modifier = Modifier.animateContentSize()
                 ) {
                     ListItem(headlineContent = { Text("Cuenta") })
                     HorizontalDivider()
 
-                    // Fila principal con botón "Cerrar sesión"
+                    // 👉 NUEVO: opción para cambiar contraseña
+                    ListItem(
+                        leadingContent = { Icon(Icons.Filled.LockReset, contentDescription = null) },
+                        headlineContent = { Text("Cambiar contraseña") },
+                        supportingContent = { Text("Actualiza la contraseña de tu cuenta.") },
+                        trailingContent = {
+                            Button(onClick = onChangePassword) {
+                                Text("Cambiar")
+                            }
+                        }
+                    )
+
+                    HorizontalDivider()
+
+                    // Cerrar sesión
                     ListItem(
                         leadingContent = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
                         headlineContent = { Text("Cerrar sesión") },
@@ -89,7 +104,6 @@ fun SettingsScreen(
                         }
                     )
 
-                    // Banda de confirmación con AnimatedVisibility
                     AnimatedVisibility(
                         visible = askLogout,
                         enter = fadeIn() + expandVertically(),

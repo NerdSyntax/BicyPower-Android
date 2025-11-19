@@ -26,4 +26,8 @@ interface UserDao {
 
     @Query("DELETE FROM users WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    // 👉 NUEVO: cambiar contraseña por email
+    @Query("UPDATE users SET password = :newPassword WHERE lower(email)=lower(:email)")
+    suspend fun updatePasswordByEmail(email: String, newPassword: String): Int
 }

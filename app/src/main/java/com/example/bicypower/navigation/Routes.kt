@@ -21,6 +21,9 @@ object Routes {
     const val ADDRESSES = "addresses"
     const val PAYMENTS = "payments"
 
+    // 👉 NUEVA RUTA: cambiar contraseña
+    const val CHANGE_PASSWORD = "change_password"
+
     // Product detail
     const val PRODUCT = "product/{id}"
     fun product(id: String) = "product/$id"
