@@ -1,14 +1,39 @@
 package com.example.bicypower.ui.screen
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bicypower.R
 import com.example.bicypower.ui.viewmodel.AuthViewModel
 import com.example.bicypower.ui.viewmodel.RegisterUiState
+
+// Colores iguales al login
+private val AzulFondo = Color(0xFF123A6D)
+private val FondoClaro = Color(0xFFB5DCF4)   // el celeste que elegiste
+private val BlancoCard = Color(0xFFF9FAFF)
+private val RojoError = Color(0xFFD32F2F)
 
 @Composable
 fun RegisterScreenVm(
@@ -71,44 +96,301 @@ private fun RegisterScreen(
     onSubmit: () -> Unit,
     onGoLogin: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Crear cuenta", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(12.dp))
+    val focus = LocalFocusManager.current
+    var mostrarPass by remember { mutableStateOf(false) }
+    var mostrarConfirm by remember { mutableStateOf(false) }
 
-        OutlinedTextField(value = name, onValueChange = onNameChange, label = { Text("Nombre") }, isError = nameError != null, singleLine = true, modifier = Modifier.fillMaxWidth())
-        if (nameError != null) Text(nameError, color = MaterialTheme.colorScheme.error)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AzulFondo)
+    ) {
 
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = email, onValueChange = onEmailChange, label = { Text("Email") }, isError = emailError != null, singleLine = true, modifier = Modifier.fillMaxWidth())
-        if (emailError != null) Text(emailError, color = MaterialTheme.colorScheme.error)
+        DiagonalBackgroundRegister(
+            modifier = Modifier
+                .matchParentSize()
+                .align(Alignment.BottomCenter)
+        )
 
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = phone, onValueChange = onPhoneChange, label = { Text("Teléfono") }, isError = phoneError != null, singleLine = true, modifier = Modifier.fillMaxWidth())
-        if (phoneError != null) Text(phoneError, color = MaterialTheme.colorScheme.error)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 36.dp)
+        ) {
 
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = pass, onValueChange = onPassChange, label = { Text("Contraseña") }, isError = passError != null, singleLine = true, modifier = Modifier.fillMaxWidth())
-        if (passError != null) Text(passError, color = MaterialTheme.colorScheme.error)
-
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = confirm, onValueChange = onConfirmChange, label = { Text("Confirmar") }, isError = confirmError != null, singleLine = true, modifier = Modifier.fillMaxWidth())
-        if (confirmError != null) Text(confirmError, color = MaterialTheme.colorScheme.error)
-
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = onSubmit, enabled = canSubmit && !isSubmitting, modifier = Modifier.fillMaxWidth()) {
-            if (isSubmitting) {
-                CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Creando…")
-            } else Text("Registrar")
-        }
-
-        if (errorMsg != null) {
             Spacer(Modifier.height(8.dp))
-            Text(errorMsg, color = MaterialTheme.colorScheme.error)
-        }
 
-        Spacer(Modifier.height(8.dp))
-        TextButton(onClick = onGoLogin) { Text("¿Ya tienes cuenta? Inicia sesión") }
+            // Logo
+            Image(
+                painter = painterResource(id = R.drawable.logo_bicypower),
+                contentDescription = "Logo BicyPower",
+                modifier = Modifier.size(52.dp)
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            Text(
+                text = "Crear cuenta",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "Completa tus datos para registrarte en BicyPower",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.85f)
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            // ---------- CARD DEL FORMULARIO ----------
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                elevation = CardDefaults.cardElevation(18.dp),
+                colors = CardDefaults.cardColors(containerColor = BlancoCard)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+
+                    // Nombre
+                    BicyTextField(
+                        value = name,
+                        onValueChange = onNameChange,
+                        label = "Nombre",
+                        isError = nameError != null,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    nameError?.let {
+                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Email
+                    BicyTextField(
+                        value = email,
+                        onValueChange = onEmailChange,
+                        label = "Correo electrónico",
+                        isError = emailError != null,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        )
+                    )
+                    emailError?.let {
+                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Teléfono
+                    BicyTextField(
+                        value = phone,
+                        onValueChange = onPhoneChange,
+                        label = "Teléfono",
+                        isError = phoneError != null,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Phone,
+                            imeAction = ImeAction.Next
+                        )
+                    )
+                    phoneError?.let {
+                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Contraseña
+                    BicyPasswordField(
+                        value = pass,
+                        onValueChange = onPassChange,
+                        label = "Contraseña",
+                        isError = passError != null,
+                        mostrar = mostrarPass,
+                        onToggleMostrar = { mostrarPass = !mostrarPass },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                    )
+                    passError?.let {
+                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Confirmar contraseña
+                    BicyPasswordField(
+                        value = confirm,
+                        onValueChange = onConfirmChange,
+                        label = "Confirmar contraseña",
+                        isError = confirmError != null,
+                        mostrar = mostrarConfirm,
+                        onToggleMostrar = { mostrarConfirm = !mostrarConfirm },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            focus.clearFocus()
+                            if (canSubmit && !isSubmitting) onSubmit()
+                        })
+                    )
+                    confirmError?.let {
+                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Botón registrar
+                    Button(
+                        onClick = onSubmit,
+                        enabled = canSubmit && !isSubmitting,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Creando cuenta…")
+                        } else {
+                            Text("Registrarme")
+                        }
+                    }
+
+                    errorMsg?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            it,
+                            color = RojoError,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Enlace para ir al login
+            TextButton(onClick = onGoLogin) {
+                Text(
+                    "¿Ya tienes cuenta? Inicia sesión",
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
+/**
+ * TextField genérico con estilo BicyPower
+ */
+@Composable
+private fun BicyTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isError: Boolean,
+    modifier: Modifier = Modifier,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        isError = isError,
+        singleLine = true,
+        modifier = modifier,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        shape = RoundedCornerShape(12.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color(0xFFF5F7FB),
+            unfocusedContainerColor = Color(0xFFF5F7FB),
+            disabledContainerColor = Color(0xFFF5F7FB),
+            errorContainerColor = Color(0xFFF5F7FB),
+            focusedIndicatorColor = AzulFondo,
+            unfocusedIndicatorColor = AzulFondo.copy(alpha = .35f),
+            disabledIndicatorColor = AzulFondo.copy(alpha = .15f),
+            errorIndicatorColor = RojoError,
+            focusedLabelColor = AzulFondo,
+            unfocusedLabelColor = Color(0xFF6B7280),
+            errorLabelColor = RojoError
+        )
+    )
+}
+
+/**
+ * TextField para contraseñas con icono de mostrar/ocultar
+ */
+@Composable
+private fun BicyPasswordField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isError: Boolean,
+    mostrar: Boolean,
+    onToggleMostrar: () -> Unit,
+    modifier: Modifier = Modifier,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        isError = isError,
+        singleLine = true,
+        modifier = modifier,
+        visualTransformation = if (mostrar) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = onToggleMostrar) {
+                Icon(
+                    imageVector = if (mostrar) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = if (mostrar) "Ocultar contraseña" else "Mostrar contraseña"
+                )
+            }
+        },
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        shape = RoundedCornerShape(12.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color(0xFFF5F7FB),
+            unfocusedContainerColor = Color(0xFFF5F7FB),
+            disabledContainerColor = Color(0xFFF5F7FB),
+            errorContainerColor = Color(0xFFF5F7FB),
+            focusedIndicatorColor = AzulFondo,
+            unfocusedIndicatorColor = AzulFondo.copy(alpha = .35f),
+            disabledIndicatorColor = AzulFondo.copy(alpha = .15f),
+            errorIndicatorColor = RojoError,
+            focusedLabelColor = AzulFondo,
+            unfocusedLabelColor = Color(0xFF6B7280),
+            errorLabelColor = RojoError
+        )
+    )
+}
+
+@Composable
+private fun DiagonalBackgroundRegister(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val path = Path().apply {
+            moveTo(0f, size.height * 0.70f)
+            lineTo(size.width, size.height * 0.55f)
+            lineTo(size.width, size.height)
+            lineTo(0f, size.height)
+            close()
+        }
+        drawPath(
+            path = path,
+            color = FondoClaro   // mismo celeste que en el login
+        )
     }
 }

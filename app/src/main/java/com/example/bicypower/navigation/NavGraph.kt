@@ -106,16 +106,18 @@ fun AppNavGraph() {
 
                 // ---------- AUTH ----------
                 composable(Routes.LOGIN) {
-                    LoginScreenVm(
+                    LoginScreenModern(
                         onLoginOk = { roleLogged ->
                             scope.launch { prefs.setSession(true, roleLogged) }
                             if (roleLogged == "ADMIN") {
                                 navController.navigate(Routes.ADMIN_HOME) {
-                                    popUpTo(Routes.LOGIN) { inclusive = true }; launchSingleTop = true
+                                    popUpTo(Routes.LOGIN) { inclusive = true }
+                                    launchSingleTop = true
                                 }
                             } else {
                                 navController.navigate(Routes.HOME) {
-                                    popUpTo(Routes.LOGIN) { inclusive = true }; launchSingleTop = true
+                                    popUpTo(Routes.LOGIN) { inclusive = true }
+                                    launchSingleTop = true
                                 }
                             }
                         },

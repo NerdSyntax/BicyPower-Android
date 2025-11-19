@@ -49,7 +49,7 @@ data class Address(
 @Composable
 fun AddressesScreen(onBack: () -> Unit) {
     val items = remember { mutableStateListOf<Address>() }
-    var nombre by remember { mutableStateOf("") }
+    var nombre  by remember { mutableStateOf("") }
     var linea1 by remember { mutableStateOf("") }
     var linea2 by remember { mutableStateOf("") }
     var ciudad by remember { mutableStateOf("") }
