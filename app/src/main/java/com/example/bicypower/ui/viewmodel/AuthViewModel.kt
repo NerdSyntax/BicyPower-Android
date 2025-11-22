@@ -11,7 +11,6 @@ import com.example.bicypower.domain.validation.validateEmail
 import com.example.bicypower.domain.validation.validateNameLettersOnly
 import com.example.bicypower.domain.validation.validatePhoneDigitsOnly
 import com.example.bicypower.domain.validation.validateStrongPassword
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -68,6 +67,22 @@ data class VerifyUiState(
     val success: Boolean = false
 )
 
+// ✅ NUEVO: estado para RESET PASSWORD
+data class ResetPasswordUiState(
+    val email: String = "",
+    val code: String = "",
+    val newPass: String = "",
+    val confirm: String = "",
+
+    val codeError: String? = null,
+    val newPassError: String? = null,
+    val confirmError: String? = null,
+
+    val isSubmitting: Boolean = false,
+    val errorMsg: String? = null,
+    val success: Boolean = false
+)
+
 // ----------------- VIEWMODEL -----------------
 
 class AuthViewModel(app: Application) : AndroidViewModel(app) {
@@ -85,26 +100,20 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onLoginEmailChange(v: String) {
-        val value = v.trim()
-        val e = validateEmail(value)
-        val newState = _login.value.copy(
-            email = value,
-            emailError = e
-        )
-        _login.value = newState.copy(
-            canSubmit = canLogin(newState)
+        val e = validateEmail(v)
+        _login.value = _login.value.copy(
+            email = v,
+            emailError = e,
+            canSubmit = canLogin(_login.value.copy(email = v, emailError = e))
         )
     }
 
     fun onLoginPassChange(v: String) {
-        val value = v
-        val err = if (value.isBlank()) "La contraseña es obligatoria" else null
-        val newState = _login.value.copy(
-            pass = value,
-            passError = err
-        )
-        _login.value = newState.copy(
-            canSubmit = canLogin(newState)
+        val err = if (v.isBlank()) "La contraseña es obligatoria" else null
+        _login.value = _login.value.copy(
+            pass = v,
+            passError = err,
+            canSubmit = canLogin(_login.value.copy(pass = v, passError = err))
         )
     }
 
@@ -124,7 +133,6 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             val result = repo.loginRemote(s.email, s.pass)
 
             result.onSuccess { usuario ->
-                // guardamos sesión
                 prefs.setSession(true, usuario.rol)
                 prefs.setIdentity(usuario.nombre, usuario.email)
 
@@ -153,64 +161,51 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onRegNameChange(v: String) {
-        val value = v.trim()
-        val e = validateNameLettersOnly(value)
-        val newState = _register.value.copy(
-            name = value,
-            nameError = e
-        )
-        _register.value = newState.copy(
-            canSubmit = canRegister(newState)
+        val e = validateNameLettersOnly(v)
+        _register.value = _register.value.copy(
+            name = v,
+            nameError = e,
+            canSubmit = canRegister(_register.value.copy(name = v, nameError = e))
         )
     }
 
     fun onRegEmailChange(v: String) {
-        val value = v.trim()
-        val e = validateEmail(value)
-        val newState = _register.value.copy(
-            email = value,
-            emailError = e
-        )
-        _register.value = newState.copy(
-            canSubmit = canRegister(newState)
+        val e = validateEmail(v)
+        _register.value = _register.value.copy(
+            email = v,
+            emailError = e,
+            canSubmit = canRegister(_register.value.copy(email = v, emailError = e))
         )
     }
 
     fun onRegPhoneChange(v: String) {
-        val value = v.trim()
-        val e = validatePhoneDigitsOnly(value)
-        val newState = _register.value.copy(
-            phone = value,
-            phoneError = e
-        )
-        _register.value = newState.copy(
-            canSubmit = canRegister(newState)
+        val e = validatePhoneDigitsOnly(v)
+        _register.value = _register.value.copy(
+            phone = v,
+            phoneError = e,
+            canSubmit = canRegister(_register.value.copy(phone = v, phoneError = e))
         )
     }
 
     fun onRegPassChange(v: String) {
-        val value = v
-        val e = validateStrongPassword(value)
-        val c = validateConfirm(value, _register.value.confirm)
-        val newState = _register.value.copy(
-            pass = value,
+        val e = validateStrongPassword(v)
+        val c = validateConfirm(v, _register.value.confirm)
+        _register.value = _register.value.copy(
+            pass = v,
             passError = e,
-            confirmError = c
-        )
-        _register.value = newState.copy(
-            canSubmit = canRegister(newState)
+            confirmError = c,
+            canSubmit = canRegister(
+                _register.value.copy(pass = v, passError = e, confirmError = c)
+            )
         )
     }
 
     fun onRegConfirmChange(v: String) {
-        val value = v
-        val c = validateConfirm(_register.value.pass, value)
-        val newState = _register.value.copy(
-            confirm = value,
-            confirmError = c
-        )
-        _register.value = newState.copy(
-            canSubmit = canRegister(newState)
+        val c = validateConfirm(_register.value.pass, v)
+        _register.value = _register.value.copy(
+            confirm = v,
+            confirmError = c,
+            canSubmit = canRegister(_register.value.copy(confirm = v, confirmError = c))
         )
     }
 
@@ -254,7 +249,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---------- FORGOT ----------
+    // ---------- FORGOT (envía código por correo) ----------
     private val _forgot = MutableStateFlow(ForgotUiState())
     val forgot = _forgot.asStateFlow()
 
@@ -263,9 +258,8 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onForgotEmailChange(v: String) {
-        val value = v.trim()
-        val e = validateEmail(value)
-        _forgot.value = _forgot.value.copy(email = value, emailError = e)
+        val e = validateEmail(v)
+        _forgot.value = _forgot.value.copy(email = v, emailError = e)
     }
 
     fun submitForgot() {
@@ -278,22 +272,24 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             _forgot.value = s.copy(isSubmitting = true, errorMsg = null)
-            delay(700)
 
-            val exists = repo.getLocalByEmail(s.email) != null
-
-            _forgot.value = if (exists) {
-                _forgot.value.copy(isSubmitting = false, success = true)
-            } else {
-                _forgot.value.copy(
-                    isSubmitting = false,
-                    errorMsg = "Correo no registrado"
-                )
-            }
+            repo.forgotPasswordRemote(s.email)
+                .onSuccess {
+                    _forgot.value = _forgot.value.copy(
+                        isSubmitting = false,
+                        success = true
+                    )
+                }
+                .onFailure { ex ->
+                    _forgot.value = _forgot.value.copy(
+                        isSubmitting = false,
+                        errorMsg = ex.message ?: "No se pudo enviar el correo"
+                    )
+                }
         }
     }
 
-    // ---------- VERIFY CODE ----------
+    // ---------- VERIFY CODE (activar cuenta) ----------
     private val _verify = MutableStateFlow(VerifyUiState())
     val verify = _verify.asStateFlow()
 
@@ -302,12 +298,11 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onVerifyCodeChange(v: String) {
-        val value = v.trim()
-        val e = if (value.length < 6) "El código debe tener 6 dígitos" else null
+        val e = if (v.length < 4) "Código demasiado corto" else null
         _verify.value = _verify.value.copy(
-            code = value,
+            code = v,
             codeError = e,
-            canSubmit = e == null && value.isNotBlank()
+            canSubmit = e == null && v.isNotBlank()
         )
     }
 
@@ -318,7 +313,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         _verify.value = s.copy(isSubmitting = true, errorMsg = null)
 
         viewModelScope.launch {
-            repo.verifyCode(email.trim(), s.code)
+            repo.verifyCode(email, s.code)
                 .onSuccess {
                     _verify.value = _verify.value.copy(
                         isSubmitting = false,
@@ -331,6 +326,75 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                         errorMsg = e.message ?: "Código incorrecto"
                     )
                 }
+        }
+    }
+
+    // ---------- RESET PASSWORD (con código) ----------
+    private val _reset = MutableStateFlow(ResetPasswordUiState())
+    val reset = _reset.asStateFlow()
+
+    fun initResetEmail(email: String) {
+        _reset.value = _reset.value.copy(email = email)
+    }
+
+    fun clearResetResult() {
+        _reset.value = _reset.value.copy(success = false, errorMsg = null)
+    }
+
+    fun onResetCodeChange(v: String) {
+        val err = if (v.length < 4) "Código demasiado corto" else null
+        _reset.value = _reset.value.copy(code = v, codeError = err)
+    }
+
+    fun onResetPassChange(v: String) {
+        val passErr = validateStrongPassword(v)
+        val confirmErr = validateConfirm(v, _reset.value.confirm)
+        _reset.value = _reset.value.copy(
+            newPass = v,
+            newPassError = passErr,
+            confirmError = confirmErr
+        )
+    }
+
+    fun onResetConfirmChange(v: String) {
+        val err = validateConfirm(_reset.value.newPass, v)
+        _reset.value = _reset.value.copy(confirm = v, confirmError = err)
+    }
+
+    fun submitResetPassword() {
+        val s = _reset.value
+
+        val codeErr = if (s.code.length < 4) "Código demasiado corto" else null
+        val passErr = validateStrongPassword(s.newPass)
+        val confirmErr = validateConfirm(s.newPass, s.confirm)
+
+        if (codeErr != null || passErr != null || confirmErr != null) {
+            _reset.value = s.copy(
+                codeError = codeErr,
+                newPassError = passErr,
+                confirmError = confirmErr
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            _reset.value = s.copy(isSubmitting = true, errorMsg = null)
+
+            repo.resetPasswordRemote(
+                email = s.email,
+                code = s.code,
+                newPassword = s.newPass
+            ).onSuccess {
+                _reset.value = _reset.value.copy(
+                    isSubmitting = false,
+                    success = true
+                )
+            }.onFailure { ex ->
+                _reset.value = _reset.value.copy(
+                    isSubmitting = false,
+                    errorMsg = ex.message ?: "Error al restablecer contraseña"
+                )
+            }
         }
     }
 }

@@ -2,7 +2,12 @@ package com.example.bicypower.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavBackStackEntry
@@ -105,7 +110,9 @@ fun AppNavGraph() {
                             scope.launch {
                                 prefs.logout()
                                 navController.navigate(Routes.LOGIN) {
-                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        inclusive = true
+                                    }
                                     launchSingleTop = true
                                 }
                             }
@@ -130,7 +137,9 @@ fun AppNavGraph() {
                             scope.launch {
                                 prefs.logout()
                                 navController.navigate(Routes.LOGIN) {
-                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        inclusive = true
+                                    }
                                     launchSingleTop = true
                                 }
                             }
@@ -145,7 +154,9 @@ fun AppNavGraph() {
                             scope.launch {
                                 prefs.logout()
                                 navController.navigate(Routes.LOGIN) {
-                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        inclusive = true
+                                    }
                                     launchSingleTop = true
                                 }
                             }
@@ -185,9 +196,8 @@ fun AppNavGraph() {
                 composable(Routes.REGISTER) {
                     RegisterScreenVm(
                         onRegisteredNavigateVerify = { email ->
-                            // sacamos REGISTER del backstack
+                            // después del registro vamos a verificar código
                             navController.popBackStack()
-                            // vamos a la pantalla de código con el correo correcto
                             navController.navigate(Routes.verifyCode(email)) {
                                 launchSingleTop = true
                             }
@@ -199,11 +209,14 @@ fun AppNavGraph() {
                     )
                 }
 
+                // ----------- FORGOT PASSWORD (envía código al correo) -----------
                 composable(Routes.FORGOT) {
                     ForgotPasswordScreenVm(
-                        onEmailSentNavigateLogin = {
-                            navController.popBackStack()
-                            navController.navigate(Routes.LOGIN) { launchSingleTop = true }
+                        onCodeSentNavigateReset = { email ->
+                            // vamos a la pantalla de reset con ese correo
+                            navController.navigate(Routes.resetPassword(email)) {
+                                launchSingleTop = true
+                            }
                         },
                         onGoLogin = {
                             navController.popBackStack()
@@ -212,7 +225,26 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------- VERIFY CODE -----------
+                // ----------- RESET PASSWORD (ingresar código + nueva pass) -----------
+                composable(
+                    route = Routes.RESET_PASSWORD,
+                    arguments = listOf(
+                        navArgument("email") { type = NavType.StringType }
+                    )
+                ) { backStackEntry ->
+                    val email = backStackEntry.arguments?.getString("email") ?: ""
+                    ResetPasswordScreenVm(
+                        email = email,
+                        onResetOkGoLogin = {
+                            navController.navigate(Routes.LOGIN) {
+                                popUpTo(Routes.LOGIN) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
+                // ----------- VERIFY CODE (activar CUENTA después de registro) -----------
                 composable(
                     route = Routes.VERIFY_CODE,
                     arguments = listOf(

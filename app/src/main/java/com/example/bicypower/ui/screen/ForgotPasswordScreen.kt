@@ -2,7 +2,8 @@ package com.example.bicypower.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -13,15 +14,16 @@ import com.example.bicypower.ui.viewmodel.ForgotUiState
 
 @Composable
 fun ForgotPasswordScreenVm(
-    onEmailSentNavigateLogin: () -> Unit,
+    onCodeSentNavigateReset: (String) -> Unit,   // 👉 ahora recibe el email
     onGoLogin: () -> Unit
 ) {
     val vm: AuthViewModel = viewModel()
     val state: ForgotUiState = vm.forgot.collectAsStateWithLifecycle().value
 
     if (state.success) {
+        // cuando el back confirma envío de correo
         vm.clearForgotResult()
-        onEmailSentNavigateLogin()
+        onCodeSentNavigateReset(state.email)     // 👉 vamos a la pantalla de código
         return
     }
 
@@ -47,40 +49,78 @@ private fun ForgotScreen(
     onGoLogin: () -> Unit
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Card(Modifier.fillMaxWidth(0.95f)) {
+        Card(
+            Modifier
+                .fillMaxWidth(0.95f)
+        ) {
             Column(Modifier.padding(20.dp)) {
-                Text("Recuperar contraseña", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Recuperar contraseña",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Ingresa tu correo y te enviaremos un código para restablecer tu contraseña.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = email,
                     onValueChange = onEmailChange,
-                    label = { Text("Email") },
+                    label = { Text("Correo electrónico") },
                     singleLine = true,
                     isError = emailError != null,
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (emailError != null) {
-                    Text(emailError, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        emailError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = onSubmit, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth()) {
+
+                Button(
+                    onClick = onSubmit,
+                    enabled = !isSubmitting,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     if (isSubmitting) {
-                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text("Enviando…")
-                    } else Text("Enviar enlace")
+                        Text("Enviando código…")
+                    } else {
+                        Text("Enviar código")
+                    }
                 }
 
                 if (errorMsg != null) {
                     Spacer(Modifier.height(8.dp))
-                    Text(errorMsg, color = MaterialTheme.colorScheme.error)
+                    Text(
+                        errorMsg,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onGoLogin, modifier = Modifier.align(Alignment.End)) { Text("Volver a login") }
+                Spacer(Modifier.height(12.dp))
+
+                TextButton(
+                    onClick = onGoLogin,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Volver a login")
+                }
             }
         }
     }
 }
+

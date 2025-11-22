@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.bicypower.data.local.database.BicyPowerDatabase
+import com.example.bicypower.data.repository.UserRepository
 import com.example.bicypower.domain.validation.validateConfirm
 import com.example.bicypower.domain.validation.validateEmail
 import com.example.bicypower.domain.validation.validateStrongPassword
@@ -46,22 +47,21 @@ fun ChangePasswordScreen(
     val context = LocalContext.current
     val db = remember { BicyPowerDatabase.getInstance(context) }
     val userDao = remember { db.userDao() }
+    val repo = remember { UserRepository(userDao) }
+
     val scope = rememberCoroutineScope()
 
-    // Valores
     var email by remember { mutableStateOf("") }
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
 
-    // Errores
     var emailError by remember { mutableStateOf<String?>(null) }
     var currentPasswordError by remember { mutableStateOf<String?>(null) }
     var newPasswordError by remember { mutableStateOf<String?>(null) }
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
 
-    // Mostrar / ocultar contraseñas
     var showCurrentPassword by remember { mutableStateOf(false) }
     var showNewPassword by remember { mutableStateOf(false) }
     var showConfirmPassword by remember { mutableStateOf(false) }
@@ -103,7 +103,7 @@ fun ChangePasswordScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = {
-                    email = it
+                    email = it.trim()
                     emailError = validateEmail(email)
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -159,9 +159,7 @@ fun ChangePasswordScreen(
                 value = newPassword,
                 onValueChange = {
                     newPassword = it
-                    // valida con las mismas reglas del registro
                     newPasswordError = validateStrongPassword(newPassword)
-                    // actualiza también la confirmación
                     confirmPasswordError = validateConfirm(newPassword, confirmPassword)
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -226,14 +224,12 @@ fun ChangePasswordScreen(
                     if (isLoading) return@Button
 
                     scope.launch {
-                        // Revalida todo al apretar el botón
                         emailError = validateEmail(email)
                         currentPasswordError =
                             if (currentPassword.isBlank()) "La contraseña actual es obligatoria" else null
                         newPasswordError = validateStrongPassword(newPassword)
                         confirmPasswordError = validateConfirm(newPassword, confirmPassword)
 
-                        // Si hay algún error, no seguimos
                         if (emailError != null ||
                             currentPasswordError != null ||
                             newPasswordError != null ||
@@ -245,23 +241,17 @@ fun ChangePasswordScreen(
 
                         isLoading = true
                         try {
-                            val user = userDao.getByEmail(email)
-                            if (user == null) {
-                                showMessage("No existe un usuario con ese correo.")
-                                return@launch
-                            }
+                            val result = repo.changePasswordRemote(
+                                email = email,
+                                currentPassword = currentPassword,
+                                newPassword = newPassword
+                            )
 
-                            if (user.password != currentPassword) {
-                                showMessage("La contraseña actual no es correcta.")
-                                return@launch
-                            }
-
-                            val updated = userDao.updatePasswordByEmail(email, newPassword)
-                            if (updated > 0) {
+                            result.onSuccess {
                                 showMessage("Contraseña actualizada con éxito.")
                                 onBack()
-                            } else {
-                                showMessage("No se pudo actualizar la contraseña.")
+                            }.onFailure { e ->
+                                showMessage(e.message ?: "No se pudo actualizar la contraseña.")
                             }
                         } finally {
                             isLoading = false
