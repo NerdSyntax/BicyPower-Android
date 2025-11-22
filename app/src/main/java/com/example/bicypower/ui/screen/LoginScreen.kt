@@ -38,11 +38,13 @@ private val AzulFondo = Color(0xFF123A6D)
 private val GrisSuave = Color(0xFFE8ECF5)
 private val BlancoCard = Color(0xFFF9FAFF)
 private val RojoError = Color(0xFFD32F2F)
+
 @Composable
 fun LoginScreenModern(
     onLoginOk: (String) -> Unit,
     onGoRegister: () -> Unit,
-    onGoForgot: () -> Unit = {}
+    onGoForgot: () -> Unit = {},
+    onGoVerifyCode: (String) -> Unit = {}   // 👈 NUEVO PARÁMETRO
 ) {
     val vm: AuthViewModel = viewModel()
     val state: LoginUiState = vm.login.collectAsStateWithLifecycle().value
@@ -93,7 +95,7 @@ fun LoginScreenModern(
 
             Spacer(Modifier.height(8.dp))
 
-            // Logo BicyPower (más pequeño)
+            // Logo BicyPower
             Image(
                 painter = painterResource(id = R.drawable.logo_bicypower),
                 contentDescription = "Logo BicyPower",
@@ -110,7 +112,7 @@ fun LoginScreenModern(
 
             Spacer(Modifier.height(24.dp))
 
-            // -------- CARD SUAVE DEL FORMULARIO ----------
+            // -------- CARD DEL FORM ----------
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
@@ -251,18 +253,31 @@ fun LoginScreenModern(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // 👇 NUEVO: enlace para ir a ingresar el código
+                    TextButton(
+                        onClick = {
+                            // Usamos el correo escrito arriba; si está vacío igual se puede
+                            // mostrar la pantalla y ahí ingresarlo.
+                            onGoVerifyCode(state.email)
+                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text(
+                            text = "¿Ya tienes tu código de verificación? Ingrésalo aquí",
+                            color = AzulFondo,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             }
 
-            // Empujamos los términos un poco hacia abajo para que queden sobre el color suave
             Spacer(Modifier.height(32.dp))
-
-
         }
     }
 }
-
-
 
 @Composable
 private fun DiagonalBackground(modifier: Modifier = Modifier) {

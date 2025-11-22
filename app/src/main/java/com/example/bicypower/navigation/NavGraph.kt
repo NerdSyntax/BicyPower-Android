@@ -33,10 +33,10 @@ fun AppNavGraph() {
 
     val startDest = remember(isLoggedIn, role) {
         when {
-            !isLoggedIn        -> Routes.LOGIN
-            role == "ADMIN"    -> Routes.ADMIN_HOME
-            role == "STAFF"    -> Routes.STAFF_HOME
-            else               -> Routes.HOME   // CLIENT u otro
+            !isLoggedIn     -> Routes.LOGIN
+            role == "ADMIN" -> Routes.ADMIN_HOME
+            role == "STAFF" -> Routes.STAFF_HOME
+            else            -> Routes.HOME   // CLIENT u otro
         }
     }
 
@@ -88,7 +88,6 @@ fun AppNavGraph() {
                 composable(Routes.CART) {
                     CartScreen(
                         onCheckout = {
-                            // Después de comprar, navegar a Mis pedidos
                             navController.navigate(Routes.ORDERS)
                         }
                     )
@@ -158,10 +157,8 @@ fun AppNavGraph() {
                 composable(Routes.LOGIN) {
                     LoginScreenModern(
                         onLoginOk = { roleLogged ->
-                            // guardamos sesión
                             scope.launch { prefs.setSession(true, roleLogged) }
 
-                            // navegamos según rol
                             when (roleLogged) {
                                 "ADMIN" -> navController.navigate(Routes.ADMIN_HOME) {
                                     popUpTo(Routes.LOGIN) { inclusive = true }
@@ -178,15 +175,22 @@ fun AppNavGraph() {
                             }
                         },
                         onGoRegister = { navController.navigate(Routes.REGISTER) },
-                        onGoForgot = { navController.navigate(Routes.FORGOT) }
+                        onGoForgot = { navController.navigate(Routes.FORGOT) },
+                        onGoVerifyCode = { email ->
+                            navController.navigate(Routes.verifyCode(email))
+                        }
                     )
                 }
 
                 composable(Routes.REGISTER) {
                     RegisterScreenVm(
-                        onRegisteredNavigateLogin = {
+                        onRegisteredNavigateVerify = { email ->
+                            // sacamos REGISTER del backstack
                             navController.popBackStack()
-                            navController.navigate(Routes.LOGIN) { launchSingleTop = true }
+                            // vamos a la pantalla de código con el correo correcto
+                            navController.navigate(Routes.verifyCode(email)) {
+                                launchSingleTop = true
+                            }
                         },
                         onGoLogin = {
                             navController.popBackStack()
@@ -204,6 +208,28 @@ fun AppNavGraph() {
                         onGoLogin = {
                             navController.popBackStack()
                             navController.navigate(Routes.LOGIN) { launchSingleTop = true }
+                        }
+                    )
+                }
+
+                // ----------- VERIFY CODE -----------
+                composable(
+                    route = Routes.VERIFY_CODE,
+                    arguments = listOf(
+                        navArgument("email") { type = NavType.StringType }
+                    )
+                ) { backStackEntry ->
+                    val email = backStackEntry.arguments?.getString("email") ?: ""
+                    VerifyCodeScreenVm(
+                        email = email,
+                        onVerified = {
+                            navController.navigate(Routes.LOGIN) {
+                                popUpTo(Routes.LOGIN) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onBackToLogin = {
+                            navController.popBackStack()
                         }
                     )
                 }

@@ -15,9 +15,13 @@ object Routes {
     const val STAFF_HOME = "staff_home"
 
     // Auth
-    const val LOGIN    = "login"
-    const val REGISTER = "register"
-    const val FORGOT   = "forgot"
+    const val LOGIN      = "login"
+    const val REGISTER   = "register"
+    const val FORGOT     = "forgot"
+    const val VERIFY_CODE = "verifyCode/{email}"
+
+    // helper para navegar con email
+    fun verifyCode(email: String) = "verifyCode/$email"
 
     // Cambiar contraseña
     const val CHANGE_PASSWORD = "change_password"

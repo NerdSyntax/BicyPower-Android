@@ -47,9 +47,9 @@ abstract class BicyPowerDatabase : RoomDatabase() {
                                     db.execSQL(
                                         """
                                         INSERT INTO users (name,email,phone,password,role) VALUES
-                                        ('Admin','admin@bicy.cl','11111111','Admin123!','ADMIN'),
-                                        ('Staff','staff@bicy.cl','22222222','Staff123!','STAFF'),
-                                        ('Cliente','cliente@bicy.cl','33333333','Cliente123!','CLIENT')
+                                        ('Admin','admin@bicy.cl','11111111','Admin12345!','ADMIN'),
+                                        ('Staff','staff@bicy.cl','22222222','Staff12345!','STAFF'),
+                                        ('Cliente','cliente@bicy.cl','33333333','Cliente12345!','CLIENT')
                                         """.trimIndent()
                                     )
                                 }

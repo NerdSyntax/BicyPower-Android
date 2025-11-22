@@ -29,24 +29,27 @@ import com.example.bicypower.R
 import com.example.bicypower.ui.viewmodel.AuthViewModel
 import com.example.bicypower.ui.viewmodel.RegisterUiState
 
-// Colores iguales al login
+// Colores
 private val AzulFondo = Color(0xFF123A6D)
-private val FondoClaro = Color(0xFFB5DCF4)   // el celeste que elegiste
+private val FondoClaro = Color(0xFFB5DCF4)
 private val BlancoCard = Color(0xFFF9FAFF)
 private val RojoError = Color(0xFFD32F2F)
 
+// ----------- VIEWMODEL WRAPPER ----------
 @Composable
 fun RegisterScreenVm(
-    onRegisteredNavigateLogin: () -> Unit,
+    onRegisteredNavigateVerify: (String) -> Unit,
     onGoLogin: () -> Unit
 ) {
     val vm: AuthViewModel = viewModel()
-    val state: RegisterUiState = vm.register.collectAsStateWithLifecycle().value
+    val state = vm.register.collectAsStateWithLifecycle().value
 
-    if (state.success) {
-        vm.clearRegisterResult()
-        onRegisteredNavigateLogin()
-        return
+    var showSuccessDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.success) {
+        if (state.success) {
+            showSuccessDialog = true
+        }
     }
 
     RegisterScreen(
@@ -69,10 +72,19 @@ fun RegisterScreenVm(
         onPassChange = vm::onRegPassChange,
         onConfirmChange = vm::onRegConfirmChange,
         onSubmit = vm::submitRegister,
-        onGoLogin = onGoLogin
+        onGoLogin = onGoLogin,
+        showSuccessDialog = showSuccessDialog,
+        onSuccessHandled = {
+            // Usamos SIEMPRE el email del estado de registro
+            val emailRegistrado = state.email
+            showSuccessDialog = false
+            vm.clearRegisterResult()
+            onRegisteredNavigateVerify(emailRegistrado)
+        }
     )
 }
 
+// ----------- UI PRINCIPAL ----------
 @Composable
 private fun RegisterScreen(
     name: String,
@@ -94,7 +106,9 @@ private fun RegisterScreen(
     onPassChange: (String) -> Unit,
     onConfirmChange: (String) -> Unit,
     onSubmit: () -> Unit,
-    onGoLogin: () -> Unit
+    onGoLogin: () -> Unit,
+    showSuccessDialog: Boolean,
+    onSuccessHandled: () -> Unit
 ) {
     val focus = LocalFocusManager.current
     var mostrarPass by remember { mutableStateOf(false) }
@@ -106,6 +120,7 @@ private fun RegisterScreen(
             .background(AzulFondo)
     ) {
 
+        // Fondo diagonal
         DiagonalBackgroundRegister(
             modifier = Modifier
                 .matchParentSize()
@@ -121,7 +136,6 @@ private fun RegisterScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // Logo
             Image(
                 painter = painterResource(id = R.drawable.logo_bicypower),
                 contentDescription = "Logo BicyPower",
@@ -146,7 +160,7 @@ private fun RegisterScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ---------- CARD DEL FORMULARIO ----------
+            // ------------ CARD ------------
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
@@ -163,9 +177,7 @@ private fun RegisterScreen(
                         isError = nameError != null,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    nameError?.let {
-                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
-                    }
+                    ErrorText(nameError)
 
                     Spacer(Modifier.height(8.dp))
 
@@ -181,9 +193,7 @@ private fun RegisterScreen(
                             imeAction = ImeAction.Next
                         )
                     )
-                    emailError?.let {
-                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
-                    }
+                    ErrorText(emailError)
 
                     Spacer(Modifier.height(8.dp))
 
@@ -199,9 +209,7 @@ private fun RegisterScreen(
                             imeAction = ImeAction.Next
                         )
                     )
-                    phoneError?.let {
-                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
-                    }
+                    ErrorText(phoneError)
 
                     Spacer(Modifier.height(8.dp))
 
@@ -216,13 +224,11 @@ private fun RegisterScreen(
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                     )
-                    passError?.let {
-                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
-                    }
+                    ErrorText(passError)
 
                     Spacer(Modifier.height(8.dp))
 
-                    // Confirmar contraseña
+                    // Confirmación
                     BicyPasswordField(
                         value = confirm,
                         onValueChange = onConfirmChange,
@@ -237,9 +243,7 @@ private fun RegisterScreen(
                             if (canSubmit && !isSubmitting) onSubmit()
                         })
                     )
-                    confirmError?.let {
-                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
-                    }
+                    ErrorText(confirmError)
 
                     Spacer(Modifier.height(16.dp))
 
@@ -265,33 +269,50 @@ private fun RegisterScreen(
                         }
                     }
 
-                    errorMsg?.let {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            it,
-                            color = RojoError,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    ErrorText(errorMsg)
                 }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // Enlace para ir al login
             TextButton(onClick = onGoLogin) {
-                Text(
-                    "¿Ya tienes cuenta? Inicia sesión",
-                    color = Color.White
-                )
+                Text("¿Ya tienes cuenta? Inicia sesión", color = Color.White)
             }
+        }
+
+        // --------- DIÁLOGO DE BIENVENIDA + CÓDIGO ----------
+        if (showSuccessDialog) {
+            AlertDialog(
+                onDismissRequest = { /* no permitir cerrar tocando afuera */ },
+                title = {
+                    Text(text = "¡Bienvenido a BicyPower!")
+                },
+                text = {
+                    Text(
+                        text = "Tu cuenta ha sido creada con éxito.\n\n" +
+                                "Te enviamos un código de verificación al correo:\n$email\n\n" +
+                                "Usa ese código para ingresar y activar tu cuenta."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = onSuccessHandled) {
+                        Text("Ir al login")
+                    }
+                }
+            )
         }
     }
 }
 
-/**
- * TextField genérico con estilo BicyPower
- */
+// ------ COMPONENTES REUTILIZABLES ------
+
+@Composable
+private fun ErrorText(msg: String?) {
+    msg?.let {
+        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
 @Composable
 private fun BicyTextField(
     value: String,
@@ -311,26 +332,10 @@ private fun BicyTextField(
         modifier = modifier,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
-        shape = RoundedCornerShape(12.dp),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color(0xFFF5F7FB),
-            unfocusedContainerColor = Color(0xFFF5F7FB),
-            disabledContainerColor = Color(0xFFF5F7FB),
-            errorContainerColor = Color(0xFFF5F7FB),
-            focusedIndicatorColor = AzulFondo,
-            unfocusedIndicatorColor = AzulFondo.copy(alpha = .35f),
-            disabledIndicatorColor = AzulFondo.copy(alpha = .15f),
-            errorIndicatorColor = RojoError,
-            focusedLabelColor = AzulFondo,
-            unfocusedLabelColor = Color(0xFF6B7280),
-            errorLabelColor = RojoError
-        )
+        shape = RoundedCornerShape(12.dp)
     )
 }
 
-/**
- * TextField para contraseñas con icono de mostrar/ocultar
- */
 @Composable
 private fun BicyPasswordField(
     value: String,
@@ -355,26 +360,13 @@ private fun BicyPasswordField(
             IconButton(onClick = onToggleMostrar) {
                 Icon(
                     imageVector = if (mostrar) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    contentDescription = if (mostrar) "Ocultar contraseña" else "Mostrar contraseña"
+                    contentDescription = null
                 )
             }
         },
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
-        shape = RoundedCornerShape(12.dp),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color(0xFFF5F7FB),
-            unfocusedContainerColor = Color(0xFFF5F7FB),
-            disabledContainerColor = Color(0xFFF5F7FB),
-            errorContainerColor = Color(0xFFF5F7FB),
-            focusedIndicatorColor = AzulFondo,
-            unfocusedIndicatorColor = AzulFondo.copy(alpha = .35f),
-            disabledIndicatorColor = AzulFondo.copy(alpha = .15f),
-            errorIndicatorColor = RojoError,
-            focusedLabelColor = AzulFondo,
-            unfocusedLabelColor = Color(0xFF6B7280),
-            errorLabelColor = RojoError
-        )
+        shape = RoundedCornerShape(12.dp)
     )
 }
 
@@ -388,9 +380,6 @@ private fun DiagonalBackgroundRegister(modifier: Modifier = Modifier) {
             lineTo(0f, size.height)
             close()
         }
-        drawPath(
-            path = path,
-            color = FondoClaro   // mismo celeste que en el login
-        )
+        drawPath(path, color = FondoClaro)
     }
 }
