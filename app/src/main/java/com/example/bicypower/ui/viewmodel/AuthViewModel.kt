@@ -67,7 +67,7 @@ data class VerifyUiState(
     val success: Boolean = false
 )
 
-// ✅ NUEVO: estado para RESET PASSWORD
+// ✅ RESET PASSWORD
 data class ResetPasswordUiState(
     val email: String = "",
     val code: String = "",

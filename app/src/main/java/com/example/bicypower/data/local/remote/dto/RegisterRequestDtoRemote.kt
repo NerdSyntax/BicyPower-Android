@@ -5,5 +5,5 @@ data class RegisterRequestDtoRemote(
     val email: String,
     val telefono: String,
     val password: String,
-    val rol: String = "CLIENT"
+    val rol: String
 )

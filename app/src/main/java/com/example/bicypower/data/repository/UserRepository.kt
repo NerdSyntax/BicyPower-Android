@@ -1,7 +1,6 @@
 package com.example.bicypower.data.repository
 
 import com.example.bicypower.data.local.user.UserDao
-import com.example.bicypower.data.local.user.UserEntity
 import com.example.bicypower.data.remote.BicyPowerRemoteModule
 import com.example.bicypower.data.remote.dto.ChangePasswordRequestDtoRemote
 import com.example.bicypower.data.remote.dto.ForgotPasswordRequestDtoRemote
@@ -17,44 +16,36 @@ class UserRepository(
 
     private val api = BicyPowerRemoteModule.api
 
-    // ------------------------------------------------------------
-    // LOGIN REMOTO
-    // ------------------------------------------------------------
+    // ---------- LOGIN ----------
     suspend fun loginRemote(email: String, password: String): Result<UsuarioDtoRemote> {
         return try {
-            val body = LoginRequestDtoRemote(email = email, password = password)
+            val body = LoginRequestDtoRemote(email, password)
             val response = api.login(body)
 
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)
             } else {
-                Result.failure(
-                    Exception(
-                        response.errorBody()?.string()
-                            ?: "Error al iniciar sesión (${response.code()})"
-                    )
-                )
+                Result.failure(Exception("Credenciales inválidas"))
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // ------------------------------------------------------------
-    // REGISTRO REMOTO
-    // ------------------------------------------------------------
+    // ---------- REGISTER NORMAL (CLIENT) ----------
     suspend fun registerRemote(
-        nombre: String,
+        name: String,
         email: String,
-        telefono: String,
-        password: String
+        phone: String,
+        pass: String
     ): Result<UsuarioDtoRemote> {
         return try {
             val body = RegisterRequestDtoRemote(
-                nombre = nombre,
+                nombre = name,
                 email = email,
-                telefono = telefono,
-                password = password
+                telefono = phone,
+                password = pass,
+                rol = "CLIENT"          // <- registro normal de la app
             )
 
             val response = api.register(body)
@@ -62,104 +53,76 @@ class UserRepository(
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)
             } else {
-                Result.failure(
-                    Exception(
-                        response.errorBody()?.string()
-                            ?: "Error del servidor (${response.code()})"
-                    )
-                )
+                Result.failure(Exception("Error del servidor (${response.code()})"))
             }
+
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // ------------------------------------------------------------
-    // VERIFICAR CÓDIGO (Registro)
-    // ------------------------------------------------------------
-    suspend fun verifyCode(email: String, code: String): Result<Unit> {
-        return try {
-            val body = VerifyCodeRequestDtoRemote(
-                email = email,
-                codigo = code
-            )
-
-            val response = api.verifyCode(body)
-
-            if (response.isSuccessful) {
-                Result.success(Unit)
-            } else {
-                Result.failure(
-                    Exception(
-                        response.errorBody()?.string()
-                            ?: "Código de verificación inválido (${response.code()})"
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    // ------------------------------------------------------------
-    // CAMBIAR CONTRASEÑA (usuario autenticado)
-    // ------------------------------------------------------------
-    suspend fun changePasswordRemote(
+    // ---------- REGISTER STAFF (ADMIN) ----------
+    suspend fun registerStaffRemote(
+        name: String,
         email: String,
-        currentPassword: String,
-        newPassword: String
-    ): Result<Unit> {
+        phone: String,
+        pass: String
+    ): Result<UsuarioDtoRemote> {
         return try {
-            val body = ChangePasswordRequestDtoRemote(
+            val body = RegisterRequestDtoRemote(
+                nombre = name,
                 email = email,
-                currentPassword = currentPassword,
-                newPassword = newPassword
+                telefono = phone,
+                password = pass,
+                rol = "STAFF"           // <- acá lo mandamos como STAFF
             )
 
-            val response = api.changePassword(body)
+            val response = api.register(body)
 
-            if (response.isSuccessful) {
-                Result.success(Unit)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
             } else {
-                Result.failure(
-                    Exception(
-                        response.errorBody()?.string()
-                            ?: "Error al cambiar la contraseña (${response.code()})"
-                    )
-                )
+                Result.failure(Exception("Error del servidor (${response.code()})"))
             }
+
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // ------------------------------------------------------------
-    // ENVIAR CÓDIGO DE RECUPERACIÓN (forgot-password)
-    // ------------------------------------------------------------
+    // ---------- FORGOT PASSWORD ----------
     suspend fun forgotPasswordRemote(email: String): Result<Unit> {
         return try {
-            val body = ForgotPasswordRequestDtoRemote(email = email)
+            val body = ForgotPasswordRequestDtoRemote(email)
             val response = api.forgotPassword(body)
 
             if (response.isSuccessful) {
                 Result.success(Unit)
             } else {
-                Result.failure(
-                    Exception(
-                        response.errorBody()?.string()
-                            ?: "Error al enviar correo (${response.code()})"
-                    )
-                )
+                Result.failure(Exception("No se pudo enviar el correo (${response.code()})"))
             }
-
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // ------------------------------------------------------------
-    // RESET PASSWORD CON CÓDIGO
-    // ------------------------------------------------------------
+    // ---------- VERIFY CODE ----------
+    suspend fun verifyCode(email: String, code: String): Result<Unit> {
+        return try {
+            val body = VerifyCodeRequestDtoRemote(email = email, codigo = code)
+            val response = api.verifyCode(body)
+
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Código inválido (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ---------- RESET PASSWORD ----------
     suspend fun resetPasswordRemote(
         email: String,
         code: String,
@@ -171,29 +134,73 @@ class UserRepository(
                 codigo = code,
                 newPassword = newPassword
             )
-
             val response = api.resetPassword(body)
 
             if (response.isSuccessful) {
                 Result.success(Unit)
             } else {
                 Result.failure(
-                    Exception(
-                        response.errorBody()?.string()
-                            ?: "Error al restablecer contraseña (${response.code()})"
-                    )
+                    Exception("No se pudo cambiar la contraseña (${response.code()})")
                 )
             }
-
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // ------------------------------------------------------------
-    // BASE LOCAL (Room) – si quieres seguir usándola
-    // ------------------------------------------------------------
-    suspend fun getLocalByEmail(email: String): UserEntity? {
-        return userDao.getByEmail(email)
+    // ---------- CHANGE PASSWORD ----------
+    suspend fun changePasswordRemote(
+        email: String,
+        currentPassword: String,
+        newPassword: String
+    ): Result<Unit> {
+        return try {
+            val body = ChangePasswordRequestDtoRemote(
+                email = email,
+                currentPassword = currentPassword,
+                newPassword = newPassword
+            )
+            val response = api.changePassword(body)
+
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(
+                    Exception("No se pudo actualizar (${response.code()})")
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ---------- LISTAR USUARIOS (ADMIN) ----------
+    suspend fun getAllUsersRemote(): Result<List<UsuarioDtoRemote>> {
+        return try {
+            val response = api.getUsers()
+
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Error del servidor (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ---------- ELIMINAR USUARIO (ADMIN) ----------
+    suspend fun deleteUserRemote(id: Long): Result<Unit> {
+        return try {
+            val response = api.deleteUser(id)
+
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Error al eliminar (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

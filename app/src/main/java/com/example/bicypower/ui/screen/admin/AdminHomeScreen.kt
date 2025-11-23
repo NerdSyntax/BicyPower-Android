@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.bicypower.data.local.product.ProductEntity
-import com.example.bicypower.data.local.user.UserEntity
 import com.example.bicypower.domain.validation.validateEmail
 import com.example.bicypower.domain.validation.validateNameLettersOnly
 import com.example.bicypower.domain.validation.validatePhoneDigitsOnly
@@ -31,6 +30,7 @@ import com.example.bicypower.domain.validation.validateStock
 import com.example.bicypower.domain.validation.validateStrongPassword
 import com.example.bicypower.ui.viewmodel.AdminProductsState
 import com.example.bicypower.ui.viewmodel.AdminProductsViewModel
+import com.example.bicypower.ui.viewmodel.AdminUserUi
 import com.example.bicypower.ui.viewmodel.AdminUsersState
 import com.example.bicypower.ui.viewmodel.AdminUsersViewModel
 
@@ -43,7 +43,7 @@ fun AdminHomeScreen(
     val vmProd: AdminProductsViewModel = viewModel()
 
     val usersState by vmUsers.state.collectAsState()
-    val prodState  by vmProd.state.collectAsState()
+    val prodState by vmProd.state.collectAsState()
 
     var tab by remember { mutableStateOf(0) } // 0: Usuarios, 1: Productos
 
@@ -95,7 +95,7 @@ fun AdminHomeScreen(
                     onEditPrice = { id, current -> vmProd.openEditPrice(id, current) },
                     onEditImage = { id, url -> vmProd.openEditImage(id, url) },
                     onEditStock = { id, stock -> vmProd.openEditStock(id, stock) },
-                    onDelete    = { id -> vmProd.askDelete(id) }
+                    onDelete = { id -> vmProd.askDelete(id) }
                 )
             }
 
@@ -143,20 +143,20 @@ fun AdminHomeScreen(
     // ---- Productos ----
     if (prodState.showCreate) {
         AdminCreateProductDialog(
-            name  = prodState.pName,
+            name = prodState.pName,
             price = prodState.pPrice,
             image = prodState.pImage,
-            desc  = prodState.pDesc,
+            desc = prodState.pDesc,
             stock = prodState.pStock,
-            onName  = vmProd::onName,
+            onName = vmProd::onName,
             onPrice = vmProd::onPrice,
             onImage = vmProd::onImage,
-            onDesc  = vmProd::onDesc,
+            onDesc = vmProd::onDesc,
             onStock = vmProd::onStock,
             onDismiss = vmProd::closeCreate,
-            onCreate  = vmProd::create,
+            onCreate = vmProd::create,
             isSubmitting = prodState.isSubmitting,
-            error        = prodState.errorMsg
+            error = prodState.errorMsg
         )
     }
     if (prodState.editId != null) {
@@ -179,7 +179,7 @@ fun AdminHomeScreen(
     if (prodState.editStockId != null) {
         EditStockDialog(
             stock = prodState.editStock,
-            onStock  = vmProd::onEditStock,
+            onStock = vmProd::onEditStock,
             onDismiss = vmProd::closeEditStock,
             onConfirm = vmProd::applyEditStock
         )
@@ -222,14 +222,17 @@ private fun UsersSection(
             contentPadding = PaddingValues(16.dp)
         ) {
             items(state.users, key = { it.id }) { u ->
-                UserRow(u, onDelete = { if (u.role != "ADMIN") onDelete(u.id) })
+                UserRow(
+                    user = u,
+                    onDelete = { if (u.role != "ADMIN") onDelete(u.id) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun UserRow(user: UserEntity, onDelete: () -> Unit) {
+private fun UserRow(user: AdminUserUi, onDelete: () -> Unit) {
     ElevatedCard {
         Row(
             Modifier
@@ -285,7 +288,7 @@ private fun ProductsSection(
                     onEditPrice = { onEditPrice(p.id, p.price) },
                     onEditImage = { onEditImage(p.id, p.imageUrl) },
                     onEditStock = { onEditStock(p.id, p.stock) },
-                    onDelete    = { onDelete(p.id) }
+                    onDelete = { onDelete(p.id) }
                 )
             }
         }
