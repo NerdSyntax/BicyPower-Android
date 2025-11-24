@@ -105,7 +105,7 @@ fun LoginScreenModern(
             Spacer(Modifier.height(6.dp))
 
             Text(
-                text = "LOGIN",
+                text = "BicyPower",
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White
             )
