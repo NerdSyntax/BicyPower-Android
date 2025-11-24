@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
@@ -44,7 +43,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(
     onLogout: () -> Unit,
-    onChangePassword: () -> Unit   // 👉 NUEVO
+    onChangePassword: () -> Unit,   // 👉 NUEVO
+    onCheckBike: () -> Unit
 ) {
     val context = LocalContext.current
     val versionName = try {

@@ -1,5 +1,3 @@
-package com.example.bicypower.navigation
-
 object Routes {
     // Tabs cliente
     const val HOME     = "home"
@@ -19,28 +17,26 @@ object Routes {
     const val REGISTER    = "register"
     const val FORGOT      = "forgot"
 
-    // Verificar cuenta (registro)
-    const val VERIFY_CODE = "verifyCode/{email}"
+    const val VERIFY_CODE    = "verifyCode/{email}"
     fun verifyCode(email: String) = "verifyCode/$email"
 
-    // Reset password (olvidé mi contraseña)
     const val RESET_PASSWORD = "reset_password/{email}"
     fun resetPassword(email: String) = "reset_password/$email"
 
-    // Cambiar contraseña (usuario logueado)
     const val CHANGE_PASSWORD = "change_password"
 
-    // Perfil -> subsecciones
     const val ORDERS    = "orders"
     const val ADDRESSES = "addresses"
     const val PAYMENTS  = "payments"
 
-    // Producto detalle
     const val PRODUCT = "product/{id}"
     fun product(id: String) = "product/$id"
+
+    // 👉 NUEVA RUTA
+    const val CHECK_BIKE = "check_bike"
 }
 
-// Rutas que muestran la bottom bar (rol cliente)
+// Rutas con bottom bar (no agregamos CHECK_BIKE acá)
 val bottomRoutes = setOf(
     Routes.HOME,
     Routes.PROFILE,

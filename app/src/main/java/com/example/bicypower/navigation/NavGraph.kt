@@ -18,7 +18,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.bicypower.data.CartStore
-import com.example.bicypower.data.Product
 import com.example.bicypower.data.local.storage.UserPreferences
 import com.example.bicypower.ui.components.AppBottomBar
 import com.example.bicypower.ui.screen.*
@@ -71,11 +70,8 @@ fun AppNavGraph() {
                 // ----------------- HOME CLIENTE -----------------
                 composable(Routes.HOME) {
                     HomeScreen(
-                        onOpenProduct = { id: String ->
+                        onOpenProduct = { id ->
                             navController.navigate(Routes.product(id))
-                        },
-                        onAddToCart = { p: Product ->
-                            CartStore.add(p.id)
                         }
                     )
                 }
@@ -119,8 +115,16 @@ fun AppNavGraph() {
                         },
                         onChangePassword = {
                             navController.navigate(Routes.CHANGE_PASSWORD)
+                        },
+                        onCheckBike = {
+                            navController.navigate(Routes.CHECK_BIKE)
                         }
                     )
+                }
+
+                // ----------------- CHECK BIKE (API EXTERNA) -----------------
+                composable(Routes.CHECK_BIKE) {
+                    CheckBikeScreen()
                 }
 
                 // ----------------- CHANGE PASSWORD -----------------
@@ -196,7 +200,6 @@ fun AppNavGraph() {
                 composable(Routes.REGISTER) {
                     RegisterScreenVm(
                         onRegisteredNavigateVerify = { email ->
-                            // después del registro vamos a verificar código
                             navController.popBackStack()
                             navController.navigate(Routes.verifyCode(email)) {
                                 launchSingleTop = true
@@ -213,7 +216,6 @@ fun AppNavGraph() {
                 composable(Routes.FORGOT) {
                     ForgotPasswordScreenVm(
                         onCodeSentNavigateReset = { email ->
-                            // vamos a la pantalla de reset con ese correo
                             navController.navigate(Routes.resetPassword(email)) {
                                 launchSingleTop = true
                             }
@@ -225,7 +227,7 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------- RESET PASSWORD (ingresar código + nueva pass) -----------
+                // ----------- RESET PASSWORD -----------
                 composable(
                     route = Routes.RESET_PASSWORD,
                     arguments = listOf(
@@ -244,7 +246,7 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------- VERIFY CODE (activar CUENTA después de registro) -----------
+                // ----------- VERIFY CODE -----------
                 composable(
                     route = Routes.VERIFY_CODE,
                     arguments = listOf(
@@ -295,3 +297,57 @@ fun AppNavGraph() {
         }
     }
 }
+
+@Composable
+fun CheckBikeScreen() {
+    TODO("Not yet implemented")
+}
+
+// ----------------------------------------------------------
+// Rutas
+// ----------------------------------------------------------
+object Routes {
+    // Tabs cliente
+    const val HOME     = "home"
+    const val PROFILE  = "profile"
+    const val CART     = "cart"
+    const val SUPPORT  = "support"
+    const val SETTINGS = "settings"
+
+    // Admin
+    const val ADMIN_HOME = "admin_home"
+
+    // Staff
+    const val STAFF_HOME = "staff_home"
+
+    // Auth
+    const val LOGIN       = "login"
+    const val REGISTER    = "register"
+    const val FORGOT      = "forgot"
+
+    const val VERIFY_CODE    = "verifyCode/{email}"
+    fun verifyCode(email: String) = "verifyCode/$email"
+
+    const val RESET_PASSWORD = "reset_password/{email}"
+    fun resetPassword(email: String) = "reset_password/$email"
+
+    const val CHANGE_PASSWORD = "change_password"
+
+    const val ORDERS    = "orders"
+    const val ADDRESSES = "addresses"
+    const val PAYMENTS  = "payments"
+
+    const val PRODUCT = "product/{id}"
+    fun product(id: String) = "product/$id"
+
+    const val CHECK_BIKE = "check_bike"
+}
+
+// Rutas con bottom bar
+val bottomRoutes = setOf(
+    Routes.HOME,
+    Routes.PROFILE,
+    Routes.CART,
+    Routes.SUPPORT,
+    Routes.SETTINGS
+)
