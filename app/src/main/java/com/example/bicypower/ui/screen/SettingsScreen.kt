@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.filled.Rule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +45,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(
     onLogout: () -> Unit,
-    onChangePassword: () -> Unit,   // 👉 NUEVO
+    onChangePassword: () -> Unit,
     onCheckBike: () -> Unit
 ) {
     val context = LocalContext.current
@@ -57,7 +59,7 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            androidx.compose.material3.TopAppBar(title = { Text("Ajustes") })
+            TopAppBar(title = { Text("Ajustes") })
         }
     ) { inner ->
         LazyColumn(
@@ -78,7 +80,7 @@ fun SettingsScreen(
                     ListItem(headlineContent = { Text("Cuenta") })
                     HorizontalDivider()
 
-                    // 👉 NUEVO: opción para cambiar contraseña
+                    // Cambiar contraseña
                     ListItem(
                         leadingContent = { Icon(Icons.Filled.LockReset, contentDescription = null) },
                         headlineContent = { Text("Cambiar contraseña") },
@@ -131,6 +133,26 @@ fun SettingsScreen(
                             }
                         )
                     }
+                }
+            }
+
+            // ===== API externa (revisar bici) =====
+            item {
+                ElevatedCard {
+                    ListItem(headlineContent = { Text("Servicios externos") })
+                    HorizontalDivider()
+                    ListItem(
+                        leadingContent = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        headlineContent = { Text("Revisar bicicleta") },
+                        supportingContent = {
+                            Text("Consulta en la API externa usando el número de serie.")
+                        },
+                        trailingContent = {
+                            Button(onClick = onCheckBike) {
+                                Text("Abrir")
+                            }
+                        }
+                    )
                 }
             }
 

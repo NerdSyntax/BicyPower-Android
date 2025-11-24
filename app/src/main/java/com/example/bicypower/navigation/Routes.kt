@@ -32,11 +32,11 @@ object Routes {
     const val PRODUCT = "product/{id}"
     fun product(id: String) = "product/$id"
 
-    // 👉 NUEVA RUTA
+    // 👉 API externa
     const val CHECK_BIKE = "check_bike"
 }
 
-// Rutas con bottom bar (no agregamos CHECK_BIKE acá)
+// Rutas con bottom bar
 val bottomRoutes = setOf(
     Routes.HOME,
     Routes.PROFILE,
