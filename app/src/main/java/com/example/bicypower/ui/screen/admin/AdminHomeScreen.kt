@@ -154,7 +154,7 @@ fun AdminHomeScreen(
             onDesc = vmProd::onDesc,
             onStock = vmProd::onStock,
             onDismiss = vmProd::closeCreate,
-            onCreate = vmProd::create,
+            onCreate = vmProd::create,          // <<--- AQUÍ ESTÁ LA CORRECCIÓN
             isSubmitting = prodState.isSubmitting,
             error = prodState.errorMsg
         )
@@ -433,7 +433,6 @@ fun AdminCreateStaffDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { newValue ->
-                        // Solo letras y espacios
                         val filtered = newValue.filter { ch ->
                             ch.isLetter() || ch.isWhitespace()
                         }
@@ -475,7 +474,6 @@ fun AdminCreateStaffDialog(
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { newValue ->
-                        // Solo dígitos
                         val filtered = newValue.filter { ch -> ch.isDigit() }
                         onPhone(filtered)
                         phoneError = null
@@ -574,7 +572,6 @@ private fun AdminCreateProductDialog(
 
     val messageToShow = error ?: genericError
 
-    // Botón solo habilitado si no hay campos vacíos
     val allFilled = name.isNotBlank() && price.isNotBlank() &&
             image.isNotBlank() && desc.isNotBlank() &&
             stock.isNotBlank()
@@ -603,7 +600,6 @@ private fun AdminCreateProductDialog(
         title = { Text("Nuevo producto") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Nombre: solo letras y espacios
                 OutlinedTextField(
                     value = name,
                     onValueChange = { newValue ->
@@ -626,7 +622,6 @@ private fun AdminCreateProductDialog(
                     )
                 }
 
-                // Precio: solo dígitos
                 OutlinedTextField(
                     value = price,
                     onValueChange = { newValue ->
@@ -648,7 +643,6 @@ private fun AdminCreateProductDialog(
                     )
                 }
 
-                // Imagen
                 OutlinedTextField(
                     value = image,
                     onValueChange = {
@@ -672,7 +666,6 @@ private fun AdminCreateProductDialog(
                     Text("Elegir desde galería")
                 }
 
-                // Descripción
                 OutlinedTextField(
                     value = desc,
                     onValueChange = {
@@ -692,7 +685,6 @@ private fun AdminCreateProductDialog(
                     )
                 }
 
-                // Stock: solo dígitos
                 OutlinedTextField(
                     value = stock,
                     onValueChange = { newValue ->

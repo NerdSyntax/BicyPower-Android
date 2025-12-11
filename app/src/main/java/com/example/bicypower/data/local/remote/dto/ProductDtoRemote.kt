@@ -7,7 +7,7 @@ data class ProductDtoRemote(
     val nombre: String,
     val descripcion: String,
     val precio: Double,
-    val imagenUrl: String,
+    val imagenUrl: String?,   // <- puede venir null
     val activo: Boolean,
     val stock: Int
 )
@@ -20,7 +20,7 @@ fun ProductDtoRemote.toEntity(): ProductEntity =
         name = nombre,
         description = descripcion,
         price = precio,
-        imageUrl = imagenUrl,
+        imageUrl = imagenUrl ?: "",   // si viene null lo dejo vacío
         active = activo,
         stock = stock
     )
@@ -31,7 +31,7 @@ fun ProductEntity.toDtoRemote(): ProductDtoRemote =
         nombre = name,
         descripcion = description,
         precio = price,
-        imagenUrl = imageUrl,
+        imagenUrl = if (imageUrl.isBlank()) null else imageUrl,
         activo = active,
         stock = stock
     )

@@ -34,11 +34,11 @@ fun AppBottomBar(
     val currentRoute: String? = backStackEntry?.destination?.route
 
     val items = listOf(
-        BottomItem(Routes.HOME, "Home", Icons.Filled.Home),
-        BottomItem(Routes.PROFILE, "Profile", Icons.Filled.Person),
-        BottomItem(Routes.CART, "Cart", Icons.Filled.ShoppingCart),
-        BottomItem(Routes.SUPPORT, "Support", Icons.Filled.Help),
-        BottomItem(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
+        BottomItem(Routes.HOME, "Tienda", Icons.Filled.Home),
+        BottomItem(Routes.PROFILE, "Perfil", Icons.Filled.Person),
+        BottomItem(Routes.CART, "Carrito", Icons.Filled.ShoppingCart),
+        BottomItem(Routes.SUPPORT, "Ayuda", Icons.Filled.Help),
+        BottomItem(Routes.SETTINGS, "Ajustes", Icons.Filled.Settings),
     )
 
     NavigationBar {

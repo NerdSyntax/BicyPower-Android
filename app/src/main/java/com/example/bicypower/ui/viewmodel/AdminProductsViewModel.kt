@@ -18,6 +18,11 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 
 // ------------------------------------------------------------
 // STATE
@@ -129,6 +134,23 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
     fun onDesc(v: String) = applyState { copy(pDesc = v) }
     fun onStock(v: String) = applyState { copy(pStock = v) }
 
+    // helper: transformar Uri en MultipartBody.Part
+    private fun uriToMultipart(uri: Uri): MultipartBody.Part {
+        val resolver = getApplication<Application>().contentResolver
+        val input: InputStream = resolver.openInputStream(uri)!!
+        val buffer = ByteArrayOutputStream()
+        val temp = ByteArray(4096)
+        var read: Int
+        while (input.read(temp).also { read = it } != -1) {
+            buffer.write(temp, 0, read)
+        }
+        input.close()
+
+        val bytes = buffer.toByteArray()
+        val requestBody = RequestBody.create("image/*".toMediaTypeOrNull(), bytes)
+        return MultipartBody.Part.createFormData("file", "image.jpg", requestBody)
+    }
+
     fun create() {
         val s = _state.value
         val price = s.pPrice.toDoubleOrNull()
@@ -143,34 +165,49 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
             _state.value = s.copy(isSubmitting = true, errorMsg = null)
 
             runCatching {
-                val finalImage = withContext(Dispatchers.IO) {
-                    val raw = s.pImage.trim()
-                    val uri = Uri.parse(raw)
-                    if (uri.scheme == "content") copyImageToAppFiles(getApplication(), uri).toString()
-                    else raw
-                }
+                val rawImage = s.pImage.trim()
+                val uri = Uri.parse(rawImage)
+                val isLocalContent = uri.scheme == "content" || uri.scheme == "file"
 
+                // si es content://, no mandamos URL externa en el DTO
+                val imageUrlForDto = if (isLocalContent) "" else rawImage
+
+                // 1) Crear producto (sin BLOB)
                 val dto = ProductEntity(
                     name = s.pName.trim(),
                     description = s.pDesc.trim(),
                     price = price,
-                    imageUrl = finalImage,
+                    imageUrl = imageUrlForDto,
                     stock = stock,
                     active = true
                 ).toDtoRemote()
 
                 val response = api.createProduct(dto)
-
                 if (!response.isSuccessful || response.body() == null) {
                     throw Exception("Error al crear producto (${response.code()})")
                 }
 
-                val saved = response.body()!!.toEntity()
-                dao.insert(saved)
-            }.onSuccess { closeCreate() }
-                .onFailure {
-                    _state.value = _state.value.copy(isSubmitting = false, errorMsg = it.message)
+                val created = response.body()!!
+                val createdEntity = created.toEntity()
+                dao.insert(createdEntity)
+
+                // 2) Si la imagen viene de content:// o file://, subirla como archivo al microservicio
+                if (isLocalContent && created.id != null) {
+                    withContext(Dispatchers.IO) {
+                        val part = uriToMultipart(uri)
+                        val uploadResp = api.uploadImage(created.id, part)
+                        if (!uploadResp.isSuccessful) {
+                            throw Exception("Producto creado, pero error al subir imagen (${uploadResp.code()})")
+                        }
+                    }
+                    // recargamos los productos para obtener la URL http://.../imagen
+                    syncFromRemote()
                 }
+            }.onSuccess {
+                closeCreate()
+            }.onFailure {
+                _state.value = _state.value.copy(isSubmitting = false, errorMsg = it.message)
+            }
         }
     }
 
@@ -198,7 +235,9 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
                 val dto = local.toDtoRemote().copy(precio = newPrice)
 
                 val response = api.updateProduct(id, dto)
-                if (!response.isSuccessful) throw Exception("Error actualizando (${response.code()})")
+                if (!response.isSuccessful || response.body() == null) {
+                    throw Exception("Error actualizando (${response.code()})")
+                }
 
                 val updated = response.body()!!.toEntity()
                 dao.insert(updated)
@@ -230,14 +269,21 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
 
                 val finalUrl = withContext(Dispatchers.IO) {
                     val uri = Uri.parse(s.editImageUrl)
-                    if (uri.scheme == "content") copyImageToAppFiles(getApplication(), uri).toString()
-                    else s.editImageUrl.trim()
+                    if (uri.scheme == "content" || uri.scheme == "file") {
+                        // guardamos localmente y usamos URL vacía en el DTO (subiremos BLOB)
+                        val appUri = copyImageToAppFiles(getApplication(), uri)
+                        appUri.toString()
+                    } else {
+                        s.editImageUrl.trim()
+                    }
                 }
 
                 val dto = local.toDtoRemote().copy(imagenUrl = finalUrl)
 
                 val response = api.updateProduct(id, dto)
-                if (!response.isSuccessful) throw Exception("Error al actualizar imagen (${response.code()})")
+                if (!response.isSuccessful || response.body() == null) {
+                    throw Exception("Error al actualizar imagen (${response.code()})")
+                }
 
                 val updated = response.body()!!.toEntity()
                 dao.insert(updated)
@@ -276,7 +322,9 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
                 val dto = local.toDtoRemote().copy(stock = stock)
 
                 val response = api.updateProduct(id, dto)
-                if (!response.isSuccessful) throw Exception("Error al actualizar stock (${response.code()})")
+                if (!response.isSuccessful || response.body() == null) {
+                    throw Exception("Error al actualizar stock (${response.code()})")
+                }
 
                 val updated = response.body()!!.toEntity()
                 dao.insert(updated)
@@ -302,7 +350,9 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching {
                 val response = api.deleteProduct(id)
-                if (!response.isSuccessful) throw Exception("Error al eliminar (${response.code()})")
+                if (!response.isSuccessful) {
+                    throw Exception("Error al eliminar (${response.code()})")
+                }
 
                 dao.deleteById(id)
             }.onSuccess { cancelDelete() }

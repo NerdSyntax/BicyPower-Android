@@ -1,6 +1,7 @@
 package com.example.bicypower.data.remote
 
 import com.example.bicypower.data.remote.dto.ProductDtoRemote
+import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -26,5 +27,13 @@ interface ProductsApi {
     @DELETE("/api/productos/{id}")
     suspend fun deleteProduct(
         @Path("id") id: Long
+    ): Response<Unit>
+
+    // NUEVO: subir imagen como archivo (BLOB)
+    @Multipart
+    @POST("/api/productos/{id}/imagen")
+    suspend fun uploadImage(
+        @Path("id") id: Long,
+        @Part file: MultipartBody.Part
     ): Response<Unit>
 }
