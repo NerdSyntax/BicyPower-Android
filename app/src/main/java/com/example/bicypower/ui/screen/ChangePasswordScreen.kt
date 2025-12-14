@@ -28,11 +28,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.bicypower.data.local.database.BicyPowerDatabase
 import com.example.bicypower.data.repository.UserRepository
 import com.example.bicypower.domain.validation.validateConfirm
 import com.example.bicypower.domain.validation.validateEmail
@@ -44,10 +42,8 @@ import kotlinx.coroutines.launch
 fun ChangePasswordScreen(
     onBack: () -> Unit
 ) {
-    val context = LocalContext.current
-    val db = remember { BicyPowerDatabase.getInstance(context) }
-    val userDao = remember { db.userDao() }
-    val repo = remember { UserRepository(userDao) }
+    // ✅ SOLO REMOTO (sin Room)
+    val repo = remember { UserRepository() }
 
     val scope = rememberCoroutineScope()
 
@@ -96,7 +92,6 @@ fun ChangePasswordScreen(
         ) {
 
             Text("Ingresa tu correo y tu contraseña actual para actualizarla.")
-
             Spacer(Modifier.height(16.dp))
 
             // EMAIL

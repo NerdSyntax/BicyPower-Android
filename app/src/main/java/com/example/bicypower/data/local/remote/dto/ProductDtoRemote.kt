@@ -1,37 +1,30 @@
 package com.example.bicypower.data.remote.dto
 
-import com.example.bicypower.data.local.product.ProductEntity
+import com.google.gson.annotations.SerializedName
 
 data class ProductDtoRemote(
-    val id: Long?,
-    val nombre: String,
-    val descripcion: String,
-    val precio: Double,
-    val imagenUrl: String?,   // <- puede venir null
-    val activo: Boolean,
-    val stock: Int
+    @SerializedName("id")
+    val id: Long? = null,
+
+    @SerializedName("nombre")
+    val nombre: String? = null,
+
+    @SerializedName("descripcion")
+    val descripcion: String? = null,
+
+    @SerializedName("precio")
+    val precio: Double? = null,
+
+    @SerializedName("stock")
+    val stock: Int? = null,
+
+    @SerializedName("activo")
+    val activo: Boolean? = null,
+
+    @SerializedName("imagenUrl")
+    val imagenUrl: String? = null,
+
+    // si tu backend lo manda, déjalo nullable (puede venir null)
+    @SerializedName("bytesImagen")
+    val bytesImagen: Any? = null
 )
-
-// ---- Mappers ----
-
-fun ProductDtoRemote.toEntity(): ProductEntity =
-    ProductEntity(
-        id = id ?: 0L,
-        name = nombre,
-        description = descripcion,
-        price = precio,
-        imageUrl = imagenUrl ?: "",   // si viene null lo dejo vacío
-        active = activo,
-        stock = stock
-    )
-
-fun ProductEntity.toDtoRemote(): ProductDtoRemote =
-    ProductDtoRemote(
-        id = if (id == 0L) null else id,
-        nombre = name,
-        descripcion = description,
-        precio = price,
-        imagenUrl = if (imageUrl.isBlank()) null else imageUrl,
-        activo = active,
-        stock = stock
-    )

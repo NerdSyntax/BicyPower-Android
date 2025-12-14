@@ -5,17 +5,11 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.bicypower.data.local.database.BicyPowerDatabase
-import com.example.bicypower.data.local.product.ProductEntity
-import com.example.bicypower.data.local.storage.copyImageToAppFiles
 import com.example.bicypower.data.remote.BicyPowerRemoteModule
-import com.example.bicypower.data.remote.dto.toDtoRemote
-import com.example.bicypower.data.remote.dto.toEntity
+import com.example.bicypower.data.remote.dto.ProductDtoRemote
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -24,11 +18,8 @@ import okhttp3.RequestBody
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
-// ------------------------------------------------------------
-// STATE
-// ------------------------------------------------------------
 data class AdminProductsState(
-    val items: List<ProductEntity> = emptyList(),
+    val items: List<ProductDtoRemote> = emptyList(),
     val isLoading: Boolean = true,
 
     // Crear
@@ -58,69 +49,43 @@ data class AdminProductsState(
     val confirmDeleteId: Long? = null
 )
 
-// ------------------------------------------------------------
-// VIEWMODEL
-// ------------------------------------------------------------
 class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val dao = BicyPowerDatabase.getInstance(app).productDao()
     private val api = BicyPowerRemoteModule.productsApi
 
     private val _state = MutableStateFlow(AdminProductsState())
     val state = _state.asStateFlow()
 
     init {
-        observeLocalDb()
-        syncFromRemote()
+        refresh()
     }
 
-    // ------------------------------------------------------------
-    // 1) OBSERVAR ROOM
-    // ------------------------------------------------------------
-    private fun observeLocalDb() {
+    fun refresh() {
         viewModelScope.launch {
-            dao.observeAll()
-                .catch { e ->
-                    Log.e("AdminProductsVM", "observeAll error", e)
-                    _state.value = _state.value.copy(isLoading = false, errorMsg = e.message)
-                }
-                .collectLatest { list ->
-                    _state.value = _state.value.copy(items = list, isLoading = false)
-                }
-        }
-    }
+            _state.value = _state.value.copy(isLoading = true, errorMsg = null)
 
-    // ------------------------------------------------------------
-    // 2) TRAER PRODUCTOS DEL MICROSERVICIO
-    // ------------------------------------------------------------
-    private fun syncFromRemote() {
-        viewModelScope.launch {
             runCatching {
-                val response = api.getProducts()
-                if (response.isSuccessful && response.body() != null) {
-                    val entities = response.body()!!.map { it.toEntity() }
-                    withContext(Dispatchers.IO) {
-                        dao.clearAll()
-                        dao.insertAll(entities)
-                    }
-                } else {
-                    throw Exception("Error ${response.code()} al cargar productos")
+                val resp = api.getProducts()
+                if (!resp.isSuccessful || resp.body() == null) {
+                    throw Exception("Error ${resp.code()} al cargar productos")
                 }
-            }.onFailure {
-                _state.value = _state.value.copy(errorMsg = it.message)
+                resp.body()!!
+            }.onSuccess { list ->
+                _state.value = _state.value.copy(items = list, isLoading = false)
+            }.onFailure { e ->
+                Log.e("AdminProductsVM", "refresh error", e)
+                _state.value = _state.value.copy(isLoading = false, errorMsg = e.message)
             }
         }
     }
 
-    // ------------------------------------------------------------
-    // CREAR PRODUCTO
-    // ------------------------------------------------------------
-    fun openCreate() {
-        _state.value = _state.value.copy(showCreate = true, errorMsg = null)
-    }
+    // ----------------------------
+    // Crear
+    // ----------------------------
+    fun openCreate() = applyState { copy(showCreate = true, errorMsg = null) }
 
-    fun closeCreate() {
-        _state.value = _state.value.copy(
+    fun closeCreate() = applyState {
+        copy(
             showCreate = false,
             isSubmitting = false,
             pName = "", pPrice = "", pImage = "", pDesc = "", pStock = "",
@@ -134,7 +99,6 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
     fun onDesc(v: String) = applyState { copy(pDesc = v) }
     fun onStock(v: String) = applyState { copy(pStock = v) }
 
-    // helper: transformar Uri en MultipartBody.Part
     private fun uriToMultipart(uri: Uri): MultipartBody.Part {
         val resolver = getApplication<Application>().contentResolver
         val input: InputStream = resolver.openInputStream(uri)!!
@@ -157,72 +121,66 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
         val stock = s.pStock.toIntOrNull() ?: 0
 
         if (s.pName.isBlank() || price == null) {
-            _state.value = s.copy(errorMsg = "Nombre y precio válidos son obligatorios")
+            applyError("Nombre y precio válidos son obligatorios")
             return
         }
 
         viewModelScope.launch {
-            _state.value = s.copy(isSubmitting = true, errorMsg = null)
+            applyState { copy(isSubmitting = true, errorMsg = null) }
 
             runCatching {
                 val rawImage = s.pImage.trim()
                 val uri = Uri.parse(rawImage)
                 val isLocalContent = uri.scheme == "content" || uri.scheme == "file"
 
-                // si es content://, no mandamos URL externa en el DTO
-                val imageUrlForDto = if (isLocalContent) "" else rawImage
-
-                // 1) Crear producto (sin BLOB)
-                val dto = ProductEntity(
-                    name = s.pName.trim(),
-                    description = s.pDesc.trim(),
-                    price = price,
-                    imageUrl = imageUrlForDto,
+                val dto = ProductDtoRemote(
+                    id = 0L, // backend debería asignar
+                    nombre = s.pName.trim(),
+                    descripcion = s.pDesc.trim(),
+                    precio = price,
                     stock = stock,
-                    active = true
-                ).toDtoRemote()
+                    activo = true,
+                    imagenUrl = if (isLocalContent) "" else rawImage,
+                    bytesImagen = null
+                )
 
-                val response = api.createProduct(dto)
-                if (!response.isSuccessful || response.body() == null) {
-                    throw Exception("Error al crear producto (${response.code()})")
+                val createResp = api.createProduct(dto)
+                if (!createResp.isSuccessful || createResp.body() == null) {
+                    throw Exception("Error al crear producto (${createResp.code()})")
                 }
 
-                val created = response.body()!!
-                val createdEntity = created.toEntity()
-                dao.insert(createdEntity)
+                val created = createResp.body()!!
 
-                // 2) Si la imagen viene de content:// o file://, subirla como archivo al microservicio
-                if (isLocalContent && created.id != null) {
+                val createdId = created.id
+                if (isLocalContent && createdId != null && createdId != 0L) {
                     withContext(Dispatchers.IO) {
                         val part = uriToMultipart(uri)
-                        val uploadResp = api.uploadImage(created.id, part)
+                        val uploadResp = api.uploadImage(createdId, part)
                         if (!uploadResp.isSuccessful) {
                             throw Exception("Producto creado, pero error al subir imagen (${uploadResp.code()})")
                         }
                     }
-                    // recargamos los productos para obtener la URL http://.../imagen
-                    syncFromRemote()
                 }
+
+                created
             }.onSuccess {
                 closeCreate()
+                refresh()
             }.onFailure {
-                _state.value = _state.value.copy(isSubmitting = false, errorMsg = it.message)
+                applyState { copy(isSubmitting = false, errorMsg = it.message) }
             }
         }
     }
 
-    // ------------------------------------------------------------
-    // EDITAR PRECIO
-    // ------------------------------------------------------------
-    fun openEditPrice(id: Long, current: Double) {
-        _state.value = _state.value.copy(editId = id, editPrice = current.toString())
-    }
+    // ----------------------------
+    // Editar precio
+    // ----------------------------
+    fun openEditPrice(id: Long, current: Double) =
+        applyState { copy(editId = id, editPrice = current.toString()) }
 
     fun onEditPrice(v: String) = applyState { copy(editPrice = v) }
 
-    fun closeEdit() {
-        _state.value = _state.value.copy(editId = null, editPrice = "")
-    }
+    fun closeEdit() = applyState { copy(editId = null, editPrice = "") }
 
     fun applyEditPrice() {
         val s = _state.value
@@ -231,33 +189,31 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             runCatching {
-                val local = dao.findById(id) ?: throw Exception("Producto no existe local")
-                val dto = local.toDtoRemote().copy(precio = newPrice)
+                val current = s.items.firstOrNull { it.id == id }
+                    ?: throw Exception("Producto no existe en memoria")
 
-                val response = api.updateProduct(id, dto)
-                if (!response.isSuccessful || response.body() == null) {
-                    throw Exception("Error actualizando (${response.code()})")
+                val dto = current.copy(precio = newPrice)
+
+                val resp = api.updateProduct(id, dto)
+                if (!resp.isSuccessful || resp.body() == null) {
+                    throw Exception("Error actualizando (${resp.code()})")
                 }
-
-                val updated = response.body()!!.toEntity()
-                dao.insert(updated)
-            }.onSuccess { closeEdit() }
-                .onFailure { applyError(it) }
+            }.onSuccess {
+                closeEdit()
+                refresh()
+            }.onFailure { applyError(it.message) }
         }
     }
 
-    // ------------------------------------------------------------
-    // EDITAR IMAGEN
-    // ------------------------------------------------------------
-    fun openEditImage(id: Long, currentUrl: String) {
-        _state.value = _state.value.copy(editImageId = id, editImageUrl = currentUrl)
-    }
+    // ----------------------------
+    // Editar imagen (URL o archivo)
+    // ----------------------------
+    fun openEditImage(id: Long, currentUrl: String) =
+        applyState { copy(editImageId = id, editImageUrl = currentUrl) }
 
     fun onEditImageUrl(v: String) = applyState { copy(editImageUrl = v) }
 
-    fun closeEditImage() {
-        _state.value = _state.value.copy(editImageId = null, editImageUrl = "")
-    }
+    fun closeEditImage() = applyState { copy(editImageId = null, editImageUrl = "") }
 
     fun applyEditImage() {
         val s = _state.value
@@ -265,51 +221,45 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             runCatching {
-                val local = dao.findById(id) ?: throw Exception("Producto no existe local")
+                val current = s.items.firstOrNull { it.id == id }
+                    ?: throw Exception("Producto no existe en memoria")
 
-                val finalUrl = withContext(Dispatchers.IO) {
-                    val uri = Uri.parse(s.editImageUrl)
-                    if (uri.scheme == "content" || uri.scheme == "file") {
-                        // guardamos localmente y usamos URL vacía en el DTO (subiremos BLOB)
-                        val appUri = copyImageToAppFiles(getApplication(), uri)
-                        appUri.toString()
-                    } else {
-                        s.editImageUrl.trim()
+                val uri = Uri.parse(s.editImageUrl.trim())
+                val isLocalContent = uri.scheme == "content" || uri.scheme == "file"
+
+                if (!isLocalContent) {
+                    // URL normal
+                    val dto = current.copy(imagenUrl = s.editImageUrl.trim())
+                    val resp = api.updateProduct(id, dto)
+                    if (!resp.isSuccessful || resp.body() == null) {
+                        throw Exception("Error al actualizar imagen (${resp.code()})")
+                    }
+                } else {
+                    // content/file -> subir archivo
+                    withContext(Dispatchers.IO) {
+                        val part = uriToMultipart(uri)
+                        val uploadResp = api.uploadImage(id, part)
+                        if (!uploadResp.isSuccessful) {
+                            throw Exception("Error subiendo imagen (${uploadResp.code()})")
+                        }
                     }
                 }
-
-                val dto = local.toDtoRemote().copy(imagenUrl = finalUrl)
-
-                val response = api.updateProduct(id, dto)
-                if (!response.isSuccessful || response.body() == null) {
-                    throw Exception("Error al actualizar imagen (${response.code()})")
-                }
-
-                val updated = response.body()!!.toEntity()
-                dao.insert(updated)
-            }.onSuccess { closeEditImage() }
-                .onFailure { applyError(it) }
+            }.onSuccess {
+                closeEditImage()
+                refresh()
+            }.onFailure { applyError(it.message) }
         }
     }
 
-    fun clearImage() {
-        val id = _state.value.editImageId ?: return
-        onEditImageUrl("")
-        applyEditImage()
-    }
-
-    // ------------------------------------------------------------
-    // EDITAR STOCK
-    // ------------------------------------------------------------
-    fun openEditStock(id: Long, current: Int) {
-        _state.value = _state.value.copy(editStockId = id, editStock = current.toString())
-    }
+    // ----------------------------
+    // Editar stock
+    // ----------------------------
+    fun openEditStock(id: Long, current: Int) =
+        applyState { copy(editStockId = id, editStock = current.toString()) }
 
     fun onEditStock(v: String) = applyState { copy(editStock = v) }
 
-    fun closeEditStock() {
-        _state.value = _state.value.copy(editStockId = null, editStock = "")
-    }
+    fun closeEditStock() = applyState { copy(editStockId = null, editStock = "") }
 
     fun applyEditStock() {
         val s = _state.value
@@ -318,56 +268,52 @@ class AdminProductsViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             runCatching {
-                val local = dao.findById(id) ?: throw Exception("Producto no existe local")
-                val dto = local.toDtoRemote().copy(stock = stock)
+                val current = s.items.firstOrNull { it.id == id }
+                    ?: throw Exception("Producto no existe en memoria")
 
-                val response = api.updateProduct(id, dto)
-                if (!response.isSuccessful || response.body() == null) {
-                    throw Exception("Error al actualizar stock (${response.code()})")
+                val dto = current.copy(stock = stock)
+
+                val resp = api.updateProduct(id, dto)
+                if (!resp.isSuccessful || resp.body() == null) {
+                    throw Exception("Error al actualizar stock (${resp.code()})")
                 }
-
-                val updated = response.body()!!.toEntity()
-                dao.insert(updated)
-            }.onSuccess { closeEditStock() }
-                .onFailure { applyError(it) }
+            }.onSuccess {
+                closeEditStock()
+                refresh()
+            }.onFailure { applyError(it.message) }
         }
     }
 
-    // ------------------------------------------------------------
-    // ELIMINAR
-    // ------------------------------------------------------------
-    fun askDelete(id: Long) {
-        _state.value = _state.value.copy(confirmDeleteId = id)
-    }
-
-    fun cancelDelete() {
-        _state.value = _state.value.copy(confirmDeleteId = null)
-    }
+    // ----------------------------
+    // Eliminar
+    // ----------------------------
+    fun askDelete(id: Long) = applyState { copy(confirmDeleteId = id) }
+    fun cancelDelete() = applyState { copy(confirmDeleteId = null) }
 
     fun confirmDelete() {
         val id = _state.value.confirmDeleteId ?: return
 
         viewModelScope.launch {
             runCatching {
-                val response = api.deleteProduct(id)
-                if (!response.isSuccessful) {
-                    throw Exception("Error al eliminar (${response.code()})")
+                val resp = api.deleteProduct(id)
+                if (!resp.isSuccessful) {
+                    throw Exception("Error al eliminar (${resp.code()})")
                 }
-
-                dao.deleteById(id)
-            }.onSuccess { cancelDelete() }
-                .onFailure { applyError(it) }
+            }.onSuccess {
+                cancelDelete()
+                refresh()
+            }.onFailure { applyError(it.message) }
         }
     }
 
-    // ------------------------------------------------------------
-    // HELPERS
-    // ------------------------------------------------------------
+    // ----------------------------
+    // Helpers
+    // ----------------------------
     private fun applyState(block: AdminProductsState.() -> AdminProductsState) {
         _state.value = _state.value.block()
     }
 
-    private fun applyError(e: Throwable) {
-        _state.value = _state.value.copy(errorMsg = e.message)
+    private fun applyError(msg: String?) {
+        _state.value = _state.value.copy(errorMsg = msg)
     }
 }

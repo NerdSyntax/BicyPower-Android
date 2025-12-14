@@ -2,25 +2,17 @@ package com.example.bicypower.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import bottomRoutes
 import com.example.bicypower.data.CartStore
-import com.example.bicypower.data.Product
-import com.example.bicypower.data.local.storage.UserPreferences
+import com.example.bicypower.data.local.session.UserSession
+import com.example.bicypower.data.remote.dto.ProductDtoRemote
 import com.example.bicypower.ui.components.AppBottomBar
 import com.example.bicypower.ui.screen.*
 import com.example.bicypower.ui.screen.admin.AdminHomeScreen
@@ -31,18 +23,19 @@ import kotlinx.coroutines.launch
 fun AppNavGraph() {
     val navController = rememberNavController()
 
-    // Sesión persistida
     val context = LocalContext.current
-    val prefs = remember { UserPreferences(context) }
-    val isLoggedIn by prefs.isLoggedIn.collectAsState(initial = false)
-    val role by prefs.role.collectAsState(initial = "")
+    val session = remember { UserSession(context) }
+
+    val isLoggedIn by session.isLoggedIn.collectAsState(initial = false)
+    val role by session.role.collectAsState(initial = "")
+    val userId by session.userId.collectAsState(initial = 0L)
 
     val startDest = remember(isLoggedIn, role) {
         when {
-            !isLoggedIn     -> Routes.LOGIN
+            !isLoggedIn -> Routes.LOGIN
             role == "ADMIN" -> Routes.ADMIN_HOME
             role == "STAFF" -> Routes.STAFF_HOME
-            else            -> Routes.HOME   // CLIENT u otro
+            else -> Routes.HOME
         }
     }
 
@@ -56,10 +49,7 @@ fun AppNavGraph() {
         Scaffold(
             bottomBar = {
                 if (showBottomBar) {
-                    AppBottomBar(
-                        navController = navController,
-                        cartCount = cartCount
-                    )
+                    AppBottomBar(navController = navController, cartCount = cartCount)
                 }
             }
         ) { inner ->
@@ -68,20 +58,13 @@ fun AppNavGraph() {
                 startDestination = startDest,
                 modifier = Modifier.padding(inner)
             ) {
-
-                // ----------------- HOME CLIENTE -----------------
                 composable(Routes.HOME) {
                     HomeScreen(
-                        onOpenProduct = { id: String ->
-                            navController.navigate(Routes.product(id))
-                        },
-                        onAddToCart = { p: Product ->
-                            CartStore.add(p.id)
-                        }
+                        onOpenProduct = { id -> navController.navigate(Routes.product(id)) },
+                        onAddToCart = { p: ProductDtoRemote -> CartStore.add(p) }
                     )
                 }
 
-                // ----------------- PROFILE CLIENTE -----------------
                 composable(Routes.PROFILE) {
                     ProfileScreen(
                         onOpenOrders = { navController.navigate(Routes.ORDERS) },
@@ -90,67 +73,43 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------------- CART -----------------
                 composable(Routes.CART) {
-                    CartScreen(
-                        onCheckout = {
-                            navController.navigate(Routes.ORDERS)
-                        }
-                    )
+                    CartScreen(onCheckout = { navController.navigate(Routes.ORDERS) })
                 }
 
-                // ----------------- SUPPORT -----------------
-                composable(Routes.SUPPORT) {
-                    SupportScreen()
-                }
+                composable(Routes.SUPPORT) { SupportScreen() }
 
-                // ----------------- SETTINGS -----------------
                 composable(Routes.SETTINGS) {
                     SettingsScreen(
                         onLogout = {
                             scope.launch {
-                                prefs.logout()
+                                session.logout()
                                 navController.navigate(Routes.LOGIN) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        inclusive = true
-                                    }
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                     launchSingleTop = true
                                 }
                             }
                         },
-                        onChangePassword = {
-                            navController.navigate(Routes.CHANGE_PASSWORD)
-                        },
-                        onCheckBike = {
-                            navController.navigate(Routes.CHECK_BIKE)
-                        }
+                        onChangePassword = { navController.navigate(Routes.CHANGE_PASSWORD) },
+                        onCheckBike = { navController.navigate(Routes.CHECK_BIKE) }
                     )
                 }
 
-                // ----------------- CHECK BIKE (API EXTERNA) -----------------
                 composable(Routes.CHECK_BIKE) {
-                    CheckBikeScreen(
-                        onBack = { navController.popBackStack() }
-                    )
+                    CheckBikeScreen(onBack = { navController.popBackStack() })
                 }
 
-                // ----------------- CHANGE PASSWORD -----------------
                 composable(Routes.CHANGE_PASSWORD) {
-                    ChangePasswordScreen(
-                        onBack = { navController.popBackStack() }
-                    )
+                    ChangePasswordScreen(onBack = { navController.popBackStack() })
                 }
 
-                // ----------------- ADMIN -----------------
                 composable(Routes.ADMIN_HOME) {
                     AdminHomeScreen(
                         onLogout = {
                             scope.launch {
-                                prefs.logout()
+                                session.logout()
                                 navController.navigate(Routes.LOGIN) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        inclusive = true
-                                    }
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                     launchSingleTop = true
                                 }
                             }
@@ -158,16 +117,13 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------------- STAFF -----------------
                 composable(Routes.STAFF_HOME) {
                     StaffHomeScreen(
                         onLogout = {
                             scope.launch {
-                                prefs.logout()
+                                session.logout()
                                 navController.navigate(Routes.LOGIN) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        inclusive = true
-                                    }
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                     launchSingleTop = true
                                 }
                             }
@@ -175,13 +131,20 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------------- AUTH -----------------
                 composable(Routes.LOGIN) {
                     LoginScreenModern(
-                        onLoginOk = { roleLogged ->
-                            scope.launch { prefs.setSession(true, roleLogged) }
+                        onLoginOk = { user: AuthUser ->
+                            scope.launch {
+                                // ✅ tu UserSession tiene setLoggedIn, no setSession
+                                session.setLoggedIn(
+                                    userId = user.id,
+                                    role = user.role,
+                                    name = user.name,
+                                    email = user.email
+                                )
+                            }
 
-                            when (roleLogged) {
+                            when (user.role) {
                                 "ADMIN" -> navController.navigate(Routes.ADMIN_HOME) {
                                     popUpTo(Routes.LOGIN) { inclusive = true }
                                     launchSingleTop = true
@@ -198,9 +161,7 @@ fun AppNavGraph() {
                         },
                         onGoRegister = { navController.navigate(Routes.REGISTER) },
                         onGoForgot = { navController.navigate(Routes.FORGOT) },
-                        onGoVerifyCode = { email ->
-                            navController.navigate(Routes.verifyCode(email))
-                        }
+                        onGoVerifyCode = { email -> navController.navigate(Routes.verifyCode(email)) }
                     )
                 }
 
@@ -208,9 +169,7 @@ fun AppNavGraph() {
                     RegisterScreenVm(
                         onRegisteredNavigateVerify = { email ->
                             navController.popBackStack()
-                            navController.navigate(Routes.verifyCode(email)) {
-                                launchSingleTop = true
-                            }
+                            navController.navigate(Routes.verifyCode(email)) { launchSingleTop = true }
                         },
                         onGoLogin = {
                             navController.popBackStack()
@@ -219,13 +178,10 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------- FORGOT PASSWORD -----------
                 composable(Routes.FORGOT) {
                     ForgotPasswordScreenVm(
                         onCodeSentNavigateReset = { email ->
-                            navController.navigate(Routes.resetPassword(email)) {
-                                launchSingleTop = true
-                            }
+                            navController.navigate(Routes.resetPassword(email)) { launchSingleTop = true }
                         },
                         onGoLogin = {
                             navController.popBackStack()
@@ -234,12 +190,9 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------- RESET PASSWORD -----------
                 composable(
                     route = Routes.RESET_PASSWORD,
-                    arguments = listOf(
-                        navArgument("email") { type = NavType.StringType }
-                    )
+                    arguments = listOf(navArgument("email") { type = NavType.StringType })
                 ) { backStackEntry ->
                     val email = backStackEntry.arguments?.getString("email") ?: ""
                     ResetPasswordScreenVm(
@@ -253,12 +206,9 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------- VERIFY CODE -----------
                 composable(
                     route = Routes.VERIFY_CODE,
-                    arguments = listOf(
-                        navArgument("email") { type = NavType.StringType }
-                    )
+                    arguments = listOf(navArgument("email") { type = NavType.StringType })
                 ) { backStackEntry ->
                     val email = backStackEntry.arguments?.getString("email") ?: ""
                     VerifyCodeScreenVm(
@@ -269,13 +219,10 @@ fun AppNavGraph() {
                                 launchSingleTop = true
                             }
                         },
-                        onBackToLogin = {
-                            navController.popBackStack()
-                        }
+                        onBackToLogin = { navController.popBackStack() }
                     )
                 }
 
-                // ----------------- PRODUCT DETAIL -----------------
                 composable(
                     route = Routes.PRODUCT,
                     arguments = listOf(navArgument("id") { type = NavType.StringType })
@@ -288,19 +235,23 @@ fun AppNavGraph() {
                     )
                 }
 
-                // ----------------- PROFILE SUB SCREENS -----------------
                 composable(Routes.ORDERS) {
-                    OrdersScreen(onBack = { navController.popBackStack() })
+                    OrdersScreen(
+                        onBack = { navController.popBackStack() },
+                        userId = userId
+                    )
                 }
 
-                composable(Routes.ADDRESSES) {
-                    AddressesScreen(onBack = { navController.popBackStack() })
-                }
-
-                composable(Routes.PAYMENTS) {
-                    PaymentMethodsScreen(onBack = { navController.popBackStack() })
-                }
+                composable(Routes.ADDRESSES) { AddressesScreen(onBack = { navController.popBackStack() }) }
+                composable(Routes.PAYMENTS) { PaymentMethodsScreen(onBack = { navController.popBackStack() }) }
             }
         }
     }
 }
+
+data class AuthUser(
+    val id: Long,
+    val role: String,
+    val name: String,
+    val email: String
+)

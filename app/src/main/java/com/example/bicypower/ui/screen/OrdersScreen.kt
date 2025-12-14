@@ -1,41 +1,33 @@
 package com.example.bicypower.ui.screen
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.bicypower.data.repository.OrderStore
-import java.text.SimpleDateFormat
-import java.util.Date
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bicypower.ui.viewmodel.OrdersViewModel
+import java.text.NumberFormat
 import java.util.Locale
-
-private fun formatDate(millis: Long): String {
-    val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-    return sdf.format(Date(millis))
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrdersScreen(onBack: () -> Unit) {
-    val orders by OrderStore.orders.collectAsState()
+fun OrdersScreen(
+    onBack: () -> Unit,
+    userId: Long,
+    vm: OrdersViewModel = viewModel()
+) {
+    val state by vm.state.collectAsState()
+    val nf = remember { NumberFormat.getNumberInstance(Locale("es", "CL")) }
+
+    LaunchedEffect(userId) {
+        if (userId > 0) vm.loadMyOrders(userId)
+    }
 
     Scaffold(
         topBar = {
@@ -54,33 +46,37 @@ fun OrdersScreen(onBack: () -> Unit) {
                 .padding(inner)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            if (orders.isEmpty()) {
-                Text(
+            when {
+                state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+
+                state.errorMsg != null -> Text(
+                    "Error: ${state.errorMsg}",
+                    color = MaterialTheme.colorScheme.error
+                )
+
+                userId <= 0L -> Text("No hay sesión válida (userId=0).")
+
+                state.orders.isEmpty() -> Text(
                     "Aún no tienes pedidos. Cuando confirmes una compra, aparecerá aquí.",
                     style = MaterialTheme.typography.bodyMedium
                 )
-            } else {
-                LazyColumn {
-                    items(orders, key = { it.id }) { o ->
-                        ElevatedCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
+
+                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(state.orders, key = { it.id }) { o ->
+                        ElevatedCard(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(12.dp)) {
-                                Text(
-                                    "Pedido #${o.id}",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    formatDate(o.createdAt),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                                Text("Pedido #${o.id}", style = MaterialTheme.typography.titleMedium)
+                                Text("Fecha: ${o.fecha}", style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(4.dp))
-                                Text("Total: $ ${"%,.0f".format(o.total)}")
-                                Text("Ítems: ${o.itemsCount}")
-                                Text("Envío a: ${o.addressSummary}")
-                                Text("Entrega estimada: ${o.shippingDays} días")
+                                Text("Total: $ ${nf.format(o.total)}")
+                                Text("Ítems: ${o.items.size}")
+                                Spacer(Modifier.height(8.dp))
+                                Text("Detalle:", style = MaterialTheme.typography.labelLarge)
+                                o.items.forEach { it ->
+                                    Text("• Prod ${it.productoId} x${it.cantidad} ($ ${nf.format(it.precioUnitario)})")
+                                }
                             }
                         }
                     }

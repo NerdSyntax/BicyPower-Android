@@ -7,8 +7,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitInstance {
 
-    // Para EMULADOR: 10.0.2.2 apunta al localhost del PC
-    private const val BASE_URL = "http://10.0.2.2:8080/"
+    // Emulador: 10.0.2.2 apunta al localhost del PC
+    private const val BASE_URL_USERS = "http://10.0.2.2:8080/"
+    private const val BASE_URL_COMPRA = "http://10.0.2.2:8083/"
 
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
@@ -18,12 +19,19 @@ object RetrofitInstance {
         .addInterceptor(logging)
         .build()
 
-    private val retrofit: Retrofit = Retrofit.Builder()
-        .baseUrl(BASE_URL)
-        .client(okHttp)
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
+    private fun buildRetrofit(baseUrl: String): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .client(okHttp)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
 
-    // API de usuarios que usamos en UserRepository
-    val usersApi: UsersApi = retrofit.create(UsersApi::class.java)
+    private val retrofitUsers: Retrofit = buildRetrofit(BASE_URL_USERS)
+    private val retrofitCompra: Retrofit = buildRetrofit(BASE_URL_COMPRA)
+
+    val usersApi: UsersApi = retrofitUsers.create(UsersApi::class.java)
+
+    // NUEVO: API de compras
+    val purchasesApi: PurchasesApi = retrofitCompra.create(PurchasesApi::class.java)
 }

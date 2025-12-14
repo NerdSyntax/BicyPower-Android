@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,12 +41,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.bicypower.data.CartStore
+import com.example.bicypower.data.local.session.UserSession
+import com.example.bicypower.data.remote.dto.PurchaseItemRequestDtoRemote
+import com.example.bicypower.data.remote.dto.PurchaseRequestDtoRemote
 import com.example.bicypower.data.repository.CheckoutState
-import com.example.bicypower.data.repository.Order
-import com.example.bicypower.data.repository.OrderStore
+import com.example.bicypower.data.repository.PurchaseRepository
+import kotlinx.coroutines.launch
 
 @Composable
 fun CartScreen(onCheckout: () -> Unit = {}) {
+
     val items by CartStore.items.collectAsState()
     val detailed = remember(items) { CartStore.detailed() }
     val total = remember(items) { CartStore.total() }
@@ -66,42 +71,73 @@ fun CartScreen(onCheckout: () -> Unit = {}) {
     // Diálogo de confirmación
     var showConfirm by remember { mutableStateOf(false) }
 
+    // Loading al confirmar
+    var isSubmitting by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Sesión real (userId real)
+    val session = remember { UserSession(context) }
+    val userId by session.userId.collectAsState(initial = 0L)
+
+    // Repo compras (ms-compras)
+    val purchaseRepo = remember { PurchaseRepository() }
 
     if (detailed.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Tu carrito está vacío ")
+            Text("Tu carrito está vacío")
         }
         return
     }
 
-    // ====== CONTENIDO PRINCIPAL ======
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Carrito", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            "Carrito",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold
+        )
         Spacer(Modifier.height(12.dp))
 
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(detailed, key = { it.product.id }) { row ->
+            items(
+                items = detailed,
+                key = { it.product.id ?: -1L } // <- nunca null
+            ) { row ->
+
+                val pid = row.product.id ?: return@items
+                val nombre = row.product.nombre.orEmpty()
+                val precioUnit = row.product.precio ?: 0.0
+
                 ElevatedCard {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(row.product.name, fontWeight = FontWeight.SemiBold)
+                            Text(nombre, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "$ ${"%,.0f".format(row.product.price)} c/u",
+                                "$ ${"%,.0f".format(precioUnit)} c/u",
                                 style = MaterialTheme.typography.labelMedium
                             )
                         }
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = {
                                 val n = row.quantity - 1
-                                if (n <= 0) CartStore.remove(row.product.id) else CartStore.set(row.product.id, n)
-                            }) { Icon(Icons.Filled.Remove, contentDescription = "menos") }
+                                if (n <= 0) CartStore.remove(pid) else CartStore.set(pid, n)
+                            }) {
+                                Icon(Icons.Filled.Remove, contentDescription = "menos")
+                            }
 
                             Text(
                                 "${row.quantity}",
@@ -109,11 +145,11 @@ fun CartScreen(onCheckout: () -> Unit = {}) {
                                 textAlign = TextAlign.Center
                             )
 
-                            IconButton(onClick = { CartStore.set(row.product.id, row.quantity + 1) }) {
+                            IconButton(onClick = { CartStore.set(pid, row.quantity + 1) }) {
                                 Icon(Icons.Filled.Add, contentDescription = "más")
                             }
 
-                            IconButton(onClick = { CartStore.remove(row.product.id) }) {
+                            IconButton(onClick = { CartStore.remove(pid) }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "quitar")
                             }
                         }
@@ -131,7 +167,6 @@ fun CartScreen(onCheckout: () -> Unit = {}) {
 
         Spacer(Modifier.height(12.dp))
 
-        // ===== Dirección de envío seleccionable =====
         Text("Dirección de envío", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(4.dp))
 
@@ -165,7 +200,11 @@ fun CartScreen(onCheckout: () -> Unit = {}) {
 
         Button(
             onClick = {
-                // Validación básica antes del diálogo
+                if (userId <= 0L) {
+                    Toast.makeText(context, "Sesión inválida (userId=0). Vuelve a iniciar sesión.", Toast.LENGTH_LONG).show()
+                    return@Button
+                }
+
                 if (!hasAddress || !hasPayment) {
                     Toast.makeText(
                         context,
@@ -176,39 +215,30 @@ fun CartScreen(onCheckout: () -> Unit = {}) {
                 }
 
                 if (addresses.isEmpty()) {
-                    Toast.makeText(
-                        context,
-                        "No tienes direcciones guardadas.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(context, "No tienes direcciones guardadas.", Toast.LENGTH_LONG).show()
                     return@Button
                 }
 
                 if (selectedAddressId == null) {
-                    Toast.makeText(
-                        context,
-                        "Selecciona una dirección de envío.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(context, "Selecciona una dirección de envío.", Toast.LENGTH_LONG).show()
                     return@Button
                 }
 
-                // Si todo está ok, mostramos el diálogo de confirmación
                 showConfirm = true
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSubmitting
         ) {
-            Text("Ir a pagar")
+            Text(if (isSubmitting) "Procesando..." else "Ir a pagar")
         }
     }
 
-    // ====== DIÁLOGO DE CONFIRMACIÓN ======
     if (showConfirm) {
         val address = addresses.firstOrNull { it.id == selectedAddressId } ?: addresses.first()
-        val shippingDays = 3 // puedes cambiarlo o calcularlo
+        val shippingDays = 3
 
         AlertDialog(
-            onDismissRequest = { showConfirm = false },
+            onDismissRequest = { if (!isSubmitting) showConfirm = false },
             title = { Text("Confirmar compra") },
             text = {
                 Column {
@@ -216,14 +246,10 @@ fun CartScreen(onCheckout: () -> Unit = {}) {
                     Spacer(Modifier.height(4.dp))
                     Text("Envío a:")
                     Text(
-                        "${address.linea1}" +
-                                if (address.linea2.isNotBlank()) ", ${address.linea2}" else "",
+                        "${address.linea1}" + if (address.linea2.isNotBlank()) ", ${address.linea2}" else "",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    Text(
-                        "${address.ciudad}, ${address.region}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text("${address.ciudad}, ${address.region}", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(4.dp))
                     Text("Entrega estimada: $shippingDays días")
                     Spacer(Modifier.height(8.dp))
@@ -232,39 +258,61 @@ fun CartScreen(onCheckout: () -> Unit = {}) {
             },
             confirmButton = {
                 Button(
+                    enabled = !isSubmitting,
                     onClick = {
-                        // Realizamos la compra aquí
-                        val shippingDays = 3
-
-                        val order = Order(
-                            id = System.currentTimeMillis(),
-                            total = total,
-                            itemsCount = detailed.sumOf { it.quantity },
-                            createdAt = System.currentTimeMillis(),
-                            addressSummary = "${address.linea1}, ${address.ciudad}",
-                            shippingDays = shippingDays
-                        )
-                        OrderStore.add(order)
-
-                        detailed.forEach { row ->
-                            CartStore.remove(row.product.id)
+                        if (userId <= 0L) {
+                            Toast.makeText(context, "Sesión inválida (userId=0).", Toast.LENGTH_LONG).show()
+                            return@Button
                         }
 
-                        Toast.makeText(
-                            context,
-                            "Compra realizada con éxito. Llega en aproximadamente $shippingDays días.",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        val req = PurchaseRequestDtoRemote(
+                            usuarioId = userId,
+                            items = detailed.map { row ->
+                                PurchaseItemRequestDtoRemote(
+                                    productoId = row.product.id ?: 0L,
+                                    cantidad = row.quantity,
+                                    precioUnitario = (row.product.precio ?: 0.0)
+                                )
+                            }
+                        )
 
-                        showConfirm = false
-                        onCheckout()
+                        scope.launch {
+                            isSubmitting = true
+                            try {
+                                val resp = purchaseRepo.create(req) // POST REAL al ms-compras
+
+                                // vaciar carrito SOLO si el POST fue OK
+                                detailed.forEach { row ->
+                                    val pid = row.product.id ?: return@forEach
+                                    CartStore.remove(pid)
+                                }
+
+                                Toast.makeText(
+                                    context,
+                                    "Compra OK (#${resp.id}). Llega en aprox. $shippingDays días.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+
+                                showConfirm = false
+                                onCheckout()
+
+                            } catch (e: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    "Error al guardar compra: ${e.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } finally {
+                                isSubmitting = false
+                            }
+                        }
                     }
                 ) {
                     Text("Confirmar compra")
                 }
             },
             dismissButton = {
-                Button(onClick = { showConfirm = false }) {
+                Button(enabled = !isSubmitting, onClick = { showConfirm = false }) {
                     Text("Cancelar")
                 }
             }

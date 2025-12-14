@@ -3,7 +3,6 @@ package com.example.bicypower.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.bicypower.data.local.database.BicyPowerDatabase
 import com.example.bicypower.data.repository.UserRepository
 import com.example.bicypower.data.remote.dto.UsuarioDtoRemote
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,9 +33,8 @@ data class AdminUsersState(
 
 class AdminUsersViewModel(app: Application) : AndroidViewModel(app) {
 
-    // En realidad no usamos el dao aquí, pero lo dejamos para no romper otras cosas
-    private val userDao = BicyPowerDatabase.getInstance(app).userDao()
-    private val repo = UserRepository(userDao)
+    // ✅ Repo remoto (sin Room/DAO)
+    private val repo = UserRepository()
 
     private val _state = MutableStateFlow(AdminUsersState())
     val state = _state.asStateFlow()
@@ -49,6 +47,7 @@ class AdminUsersViewModel(app: Application) : AndroidViewModel(app) {
     fun loadUsers() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, errorMsg = null)
+
             repo.getAllUsersRemote()
                 .onSuccess { list ->
                     _state.value = _state.value.copy(
@@ -82,24 +81,12 @@ class AdminUsersViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    fun onFormName(v: String) {
-        _state.value = _state.value.copy(formName = v)
-    }
-
-    fun onFormEmail(v: String) {
-        _state.value = _state.value.copy(formEmail = v)
-    }
-
-    fun onFormPhone(v: String) {
-        _state.value = _state.value.copy(formPhone = v)
-    }
-
-    fun onFormPass(v: String) {
-        _state.value = _state.value.copy(formPass = v)
-    }
+    fun onFormName(v: String) { _state.value = _state.value.copy(formName = v) }
+    fun onFormEmail(v: String) { _state.value = _state.value.copy(formEmail = v) }
+    fun onFormPhone(v: String) { _state.value = _state.value.copy(formPhone = v) }
+    fun onFormPass(v: String) { _state.value = _state.value.copy(formPass = v) }
 
     /** crea un nuevo STAFF en el microservicio usando /api/usuarios */
-    // -------- Crear Staff --------
     fun createStaff() {
         val s = _state.value
         if (s.isSubmitting) return
@@ -121,7 +108,7 @@ class AdminUsersViewModel(app: Application) : AndroidViewModel(app) {
                     formPhone = "",
                     formPass = ""
                 )
-                loadUsers() // refresca la lista
+                loadUsers()
             }.onFailure { e ->
                 _state.value = _state.value.copy(
                     isSubmitting = false,
@@ -142,8 +129,10 @@ class AdminUsersViewModel(app: Application) : AndroidViewModel(app) {
 
     fun confirmDelete() {
         val id = _state.value.confirmDeleteId ?: return
+
         viewModelScope.launch {
-            _state.value = _state.value.copy(isSubmitting = true)
+            _state.value = _state.value.copy(isSubmitting = true, errorMsg = null)
+
             repo.deleteUserRemote(id)
                 .onSuccess {
                     _state.value = _state.value.copy(

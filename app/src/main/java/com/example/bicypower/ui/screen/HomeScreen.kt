@@ -2,7 +2,17 @@ package com.example.bicypower.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,9 +20,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,49 +45,29 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.example.bicypower.data.CartStore
-import com.example.bicypower.data.Product
-import com.example.bicypower.data.local.product.ProductEntity
-import com.example.bicypower.data.local.storage.UserPreferences
+import com.example.bicypower.data.local.session.UserSession
+import com.example.bicypower.data.remote.dto.ProductDtoRemote
 import com.example.bicypower.ui.viewmodel.HomeViewModel
-import kotlinx.coroutines.launch
-import android.net.Uri
 
 @Composable
 fun HomeScreen(
     onOpenProduct: (String) -> Unit = {},
-    onAddToCart: (Product) -> Unit = {}
+    onAddToCart: (ProductDtoRemote) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val prefs = remember { UserPreferences(context) }
+    val session = remember { UserSession(context) }
 
-    // Foto persistida (solo para mostrar avatar, ya no hay botones de cámara en Home)
-    val savedPhotoUri by prefs.photoUri.collectAsState(initial = null)
-    var photoUriString by rememberSaveable { mutableStateOf<String?>(savedPhotoUri) }
-    LaunchedEffect(savedPhotoUri) { photoUriString = savedPhotoUri }
-
-    // Estado de sesión/rol para el icono
-    val role by prefs.role.collectAsState(initial = "")
-    val isLoggedIn by prefs.isLoggedIn.collectAsState(initial = false)
+    val role by session.role.collectAsState(initial = "")
+    val isLoggedIn by session.isLoggedIn.collectAsState(initial = false)
 
     val vm: HomeViewModel = viewModel()
     val state by vm.state.collectAsState()
 
-    LaunchedEffect(state.errorMsg) {
-        state.errorMsg?.let {
-            // si hay error al agregar al carrito por stock, mostrar toast
-            // (si prefieres Snackbar, cámbialo)
-            // Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            vm.clearError()
-        }
-    }
-
     var query by remember { mutableStateOf("") }
+
     val filtered = remember(state.items, query) {
         if (query.isBlank()) state.items
-        else state.items.filter { it.name.contains(query, ignoreCase = true) }
+        else state.items.filter { (it.nombre ?: "").contains(query, ignoreCase = true) }
     }
 
     Column(
@@ -83,13 +84,14 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Ícono único:
-                // - ADMIN => corona (emoji)
-                // - USER/otro => persona; azul si logeado, gris si no
                 if (role == "ADMIN") {
-                    Text("", style = MaterialTheme.typography.headlineSmall)
+                    Text("👑", style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.width(8.dp))
-                    Text("Admin", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        "Admin",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 } else {
                     val tint = if (isLoggedIn) Color(0xFF1E88E5) else MaterialTheme.colorScheme.outline
                     Icon(
@@ -98,11 +100,14 @@ fun HomeScreen(
                         tint = tint
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("BicyPower", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        "BicyPower",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 }
             }
 
-            // Avatar (muestra foto guardada si existe; ya no hay acciones aquí)
             Box(
                 Modifier
                     .size(48.dp)
@@ -110,23 +115,11 @@ fun HomeScreen(
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                if (photoUriString.isNullOrBlank()) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = "avatar",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                } else {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(Uri.parse(photoUriString))
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "avatar",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Filled.Person,
+                    contentDescription = "avatar",
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
 
@@ -140,29 +133,6 @@ fun HomeScreen(
             singleLine = true,
             shape = RoundedCornerShape(14.dp)
         )
-
-        Spacer(Modifier.height(12.dp))
-
-        ElevatedCard(
-            Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Envío gratis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Celebra el pedaleo ", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = { /* promo */ }, shape = RoundedCornerShape(12.dp)) { Text("Ver ofertas") }
-                }
-                Spacer(Modifier.width(12.dp))
-            }
-        }
 
         Spacer(Modifier.height(18.dp))
 
@@ -191,7 +161,7 @@ fun HomeScreen(
                 contentAlignment = Alignment.Center
             ) { CircularProgressIndicator() }
 
-            filtered.isEmpty() -> Text("Aún no hay productos creados. Añádelos desde Admin.", color = Color.Gray)
+            filtered.isEmpty() -> Text("No hay productos disponibles.", color = Color.Gray)
 
             else -> {
                 val rows = remember(filtered) { filtered.chunked(2) }
@@ -202,13 +172,11 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             row.forEach { p ->
-                                ProductCardDb(
+                                val pid = p.id ?: 0L
+                                ProductCardRemote(
                                     p = p,
-                                    onAdd = {
-                                        // validamos y restamos stock en VM; luego usamos tu CartStore
-                                        vm.addToCart(p) { CartStore.addDb(p) }
-                                    },
-                                    onOpen = { onOpenProduct(p.id.toString()) },
+                                    onAdd = { onAddToCart(p) },
+                                    onOpen = { onOpenProduct(pid.toString()) },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -224,21 +192,27 @@ fun HomeScreen(
 }
 
 @Composable
-private fun ProductCardDb(
-    p: ProductEntity,
+private fun ProductCardRemote(
+    p: ProductDtoRemote,
     onAdd: () -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val nombre = p.nombre.orEmpty()
+    val precio = p.precio ?: 0.0
+    val stock = p.stock ?: 0
+    val img = p.imagenUrl
+
     ElevatedCard(
         modifier = modifier.clickable(onClick = onOpen),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(Modifier.padding(12.dp)) {
-            if (p.imageUrl.isNotBlank()) {
+
+            if (!img.isNullOrBlank()) {
                 AsyncImage(
-                    model = p.imageUrl,
-                    contentDescription = p.name,
+                    model = img,
+                    contentDescription = nombre,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
@@ -247,26 +221,36 @@ private fun ProductCardDb(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            Text(p.name, maxLines = 1, overflow = TextOverflow.Clip, fontWeight = FontWeight.SemiBold)
-            Text("$ ${"%,.0f".format(p.price)}", color = MaterialTheme.colorScheme.primary)
+
+            Text(
+                nombre,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                "$ ${"%,.0f".format(precio)}",
+                color = MaterialTheme.colorScheme.primary
+            )
 
             Spacer(Modifier.height(4.dp))
-            if (p.stock <= 0) {
+            if (stock <= 0) {
                 AssistChip(onClick = {}, label = { Text("Agotado") })
             } else {
-                AssistChip(onClick = {}, label = { Text("Stock: ${p.stock}") })
+                AssistChip(onClick = {}, label = { Text("Stock: $stock") })
             }
 
             Spacer(Modifier.height(10.dp))
             Button(
                 onClick = onAdd,
-                enabled = p.stock > 0,
+                enabled = stock > 0,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Filled.AddShoppingCart, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
-                Text(if (p.stock > 0) "Agregar" else "Agotado")
+                Text(if (stock > 0) "Agregar" else "Agotado")
             }
         }
     }

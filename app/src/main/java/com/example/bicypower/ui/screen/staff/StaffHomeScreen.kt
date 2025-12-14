@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.bicypower.data.local.product.ProductEntity
+import com.example.bicypower.data.remote.dto.ProductDtoRemote
 import com.example.bicypower.ui.viewmodel.HomeViewModel
 
 // --------- MODELO SIMPLE PARA MENSAJES ----------
@@ -36,11 +36,7 @@ fun StaffHomeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Panel Staff") },
-                actions = {
-                    TextButton(onClick = onLogout) {
-                        Text("Cerrar sesión")
-                    }
-                }
+                actions = { TextButton(onClick = onLogout) { Text("Cerrar sesión") } }
             )
         }
     ) { inner ->
@@ -75,69 +71,54 @@ fun StaffHomeScreen(
 
 @Composable
 private fun StaffMessagesSection() {
-    // Mensajes de ejemplo (no hay backend)
     val chats = remember {
         listOf(
-            StaffChatPreview(
-                id = 1,
-                clientName = "Juan Pérez",
-                lastMessage = "Hola, mi pedido aún no llega.",
-                unread = 2
-            ),
-            StaffChatPreview(
-                id = 2,
-                clientName = "María López",
-                lastMessage = "¿Pueden cambiar la dirección de envío?",
-                unread = 0
-            ),
-            StaffChatPreview(
-                id = 3,
-                clientName = "Carlos Sánchez",
-                lastMessage = "Gracias por la ayuda 🙂",
-                unread = 0
-            )
+            StaffChatPreview(1, "Juan Pérez", "Hola, mi pedido aún no llega.", 2),
+            StaffChatPreview(2, "María López", "¿Pueden cambiar la dirección de envío?", 0),
+            StaffChatPreview(3, "Carlos Sánchez", "Gracias por la ayuda 🙂", 0)
         )
     }
 
     if (chats.isEmpty()) {
         Text("No hay mensajes de clientes por ahora.")
-    } else {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(chats, key = { it.id }) { chat ->
-                ElevatedCard {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(chat.clientName, fontWeight = FontWeight.SemiBold)
-                            Text(chat.lastMessage, style = MaterialTheme.typography.bodySmall)
-                        }
-                        if (chat.unread > 0) {
-                            AssistChip(
-                                onClick = { /* abrir chat en un futuro */ },
-                                label = { Text("${chat.unread} nuevos") }
-                            )
-                        } else {
-                            Text("Leído", style = MaterialTheme.typography.labelSmall)
-                        }
+        return
+    }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(chats, key = { it.id }) { chat ->
+            ElevatedCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(chat.clientName, fontWeight = FontWeight.SemiBold)
+                        Text(chat.lastMessage, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (chat.unread > 0) {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("${chat.unread} nuevos") }
+                        )
+                    } else {
+                        Text("Leído", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Aquí el staff puede revisar y responder mensajes de los clientes.",
-            style = MaterialTheme.typography.bodySmall
-        )
     }
-}
 
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "Aquí el staff puede revisar y responder mensajes de los clientes.",
+        style = MaterialTheme.typography.bodySmall
+    )
+}
 @Composable
 private fun StaffProductsSection(
-    products: List<ProductEntity>,
+    products: List<ProductDtoRemote>,
     isLoading: Boolean
 ) {
     if (isLoading) {
@@ -146,9 +127,7 @@ private fun StaffProductsSection(
                 .fillMaxWidth()
                 .height(120.dp),
             contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
-        }
+        ) { CircularProgressIndicator() }
         return
     }
 
@@ -161,15 +140,24 @@ private fun StaffProductsSection(
     Spacer(Modifier.height(8.dp))
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(products, key = { it.id }) { p ->
+        items(products, key = { it.id ?: 0L }) { p ->
+            val nombre = p.nombre.orEmpty()
+            val precio = p.precio ?: 0.0
+            val stock = p.stock ?: 0
+
             ElevatedCard {
                 Column(Modifier.padding(12.dp)) {
-                    Text(p.name, fontWeight = FontWeight.SemiBold)
-                    Text("$ ${"%,.0f".format(p.price)}")
+                    Text(
+                        if (nombre.isBlank()) "Sin nombre" else nombre,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Text("$ ${"%,.0f".format(precio)}")
+
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        if (p.stock <= 0) "Sin stock"
-                        else "Stock disponible: ${p.stock}",
+                        if (stock <= 0) "Sin stock"
+                        else "Stock disponible: $stock",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -177,3 +165,5 @@ private fun StaffProductsSection(
         }
     }
 }
+
+

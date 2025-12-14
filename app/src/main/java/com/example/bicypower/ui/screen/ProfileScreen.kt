@@ -18,10 +18,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.bicypower.data.local.storage.UserPreferences
+import com.example.bicypower.data.local.session.UserSession
 import com.example.bicypower.data.local.storage.createTempImageFile
 import com.example.bicypower.data.local.storage.fileUri
-import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(
@@ -30,18 +29,16 @@ fun ProfileScreen(
     onOpenPayments: () -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = remember { UserPreferences(context) }
-    val scope = rememberCoroutineScope()
+    val session = remember { UserSession(context) }
 
-    val name  by prefs.userName.collectAsState(initial = "Cliente")
-    val email by prefs.userEmail.collectAsState(initial = "")
-    val savedPhoto by prefs.photoUri.collectAsState(initial = null)
+    val name by session.userName.collectAsState(initial = "Cliente")
+    val email by session.userEmail.collectAsState(initial = "")
 
-    var photoUri by remember { mutableStateOf<String?>(savedPhoto) }
-    LaunchedEffect(savedPhoto) { photoUri = savedPhoto }
+    // Foto SOLO EN MEMORIA (para no depender de UserPreferences)
+    var photoUri by remember { mutableStateOf<String?>(null) }
 
     // --- launchers ---
-    var pendingCapture: Uri? by remember { mutableStateOf<Uri?>(null) }
+    var pendingCapture by remember { mutableStateOf<Uri?>(null) }
 
     val takePicture = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
@@ -49,7 +46,6 @@ fun ProfileScreen(
         if (ok) {
             val s = pendingCapture?.toString()
             photoUri = s
-            scope.launch { prefs.setPhoto(s) }
             Toast.makeText(context, "Foto actualizada", Toast.LENGTH_SHORT).show()
         } else {
             pendingCapture = null
@@ -60,9 +56,7 @@ fun ProfileScreen(
         ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            val s = uri.toString()
-            photoUri = s
-            scope.launch { prefs.setPhoto(s) }
+            photoUri = uri.toString()
             Toast.makeText(context, "Foto seleccionada", Toast.LENGTH_SHORT).show()
         }
     }
@@ -77,32 +71,44 @@ fun ProfileScreen(
         // Header con avatar + datos
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier.size(56.dp).clip(CircleShape),
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 if (photoUri.isNullOrBlank()) {
-                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
                         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-                            Text((name.firstOrNull() ?: 'U').uppercaseChar().toString())
+                            val letter = (name.firstOrNull() ?: 'U').uppercaseChar().toString()
+                            Text(letter)
                         }
                     }
                 } else {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(Uri.parse(photoUri))
-                            .crossfade(true).build(),
+                            .crossfade(true)
+                            .build(),
                         contentDescription = "Avatar",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
                 }
             }
+
             Spacer(Modifier.width(12.dp))
+
             Column {
                 Text(name, style = MaterialTheme.typography.titleMedium)
                 if (email.isNotBlank()) {
-                    Text(email, style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        email,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -113,8 +119,9 @@ fun ProfileScreen(
             Button(
                 onClick = {
                     val f = createTempImageFile(context)
-                    pendingCapture = fileUri(context, f)
-                    takePicture.launch(pendingCapture)
+                    val uri = fileUri(context, f)
+                    pendingCapture = uri
+                    takePicture.launch(uri)
                 }
             ) { Text(if (photoUri.isNullOrBlank()) "Tomar foto" else "Reemplazar con cámara") }
 

@@ -17,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
@@ -27,59 +26,57 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.bicypower.data.local.storage.UserPreferences
+import com.example.bicypower.R
+import com.example.bicypower.navigation.AuthUser
 import com.example.bicypower.ui.viewmodel.AuthViewModel
 import com.example.bicypower.ui.viewmodel.LoginUiState
-import kotlinx.coroutines.launch
-import com.example.bicypower.R
 
-// Colores base
 private val AzulFondo = Color(0xFF123A6D)
-private val GrisSuave = Color(0xFFE8ECF5)
 private val BlancoCard = Color(0xFFF9FAFF)
 private val RojoError = Color(0xFFD32F2F)
 
 @Composable
 fun LoginScreenModern(
-    onLoginOk: (String) -> Unit,
+    onLoginOk: (AuthUser) -> Unit,
     onGoRegister: () -> Unit,
     onGoForgot: () -> Unit = {},
-    onGoVerifyCode: (String) -> Unit = {}   // 👈 NUEVO PARÁMETRO
+    onGoVerifyCode: (String) -> Unit = {}
 ) {
     val vm: AuthViewModel = viewModel()
     val state: LoginUiState = vm.login.collectAsStateWithLifecycle().value
-
-    val context = LocalContext.current
-    val prefs = remember { UserPreferences(context) }
-    val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
 
     var mostrarPass by remember { mutableStateOf(false) }
 
-    // --- Navegación cuando login OK ---
+    // IMPORTANTE:
+    // - No guardamos DataStore aquí. Lo hace AppNavGraph cuando recibe el AuthUser.
+    // - Así evitamos guardar sesión incompleta (sin userId).
     if (state.success) {
-        LaunchedEffect(true) {
-            scope.launch {
-                prefs.setSession(true, state.role ?: "USER")
-                prefs.setIdentity(
-                    state.userName ?: "",
-                    state.userEmail ?: state.email
-                )
-            }.join()
+        LaunchedEffect(state.success) {
+            val id = state.userId ?: 0L
+            val role = state.role ?: "CLIENT"
+            val name = state.userName ?: ""
+            val email = state.userEmail ?: state.email
+
             vm.clearLoginResult()
-            onLoginOk(state.role ?: "USER")
+
+            onLoginOk(
+                AuthUser(
+                    id = id,
+                    role = role,
+                    name = name,
+                    email = email
+                )
+            )
         }
         return
     }
 
-    // --- UI ---
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(AzulFondo)
     ) {
-
-        // Parte inferior suave en diagonal
         DiagonalBackground(
             modifier = Modifier
                 .matchParentSize()
@@ -95,7 +92,6 @@ fun LoginScreenModern(
 
             Spacer(Modifier.height(8.dp))
 
-            // Logo BicyPower
             Image(
                 painter = painterResource(id = R.drawable.logo_bicypower),
                 contentDescription = "Logo BicyPower",
@@ -112,7 +108,6 @@ fun LoginScreenModern(
 
             Spacer(Modifier.height(24.dp))
 
-            // -------- CARD DEL FORM ----------
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
@@ -121,7 +116,6 @@ fun LoginScreenModern(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
 
-                    // CORREO
                     Text(
                         text = "Correo electrónico",
                         style = MaterialTheme.typography.labelMedium,
@@ -139,16 +133,11 @@ fun LoginScreenModern(
                         )
                     )
                     state.emailError?.let {
-                        Text(
-                            it,
-                            color = RojoError,
-                            style = MaterialTheme.typography.labelSmall
-                        )
+                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
                     }
 
                     Spacer(Modifier.height(12.dp))
 
-                    // CONTRASEÑA
                     Text(
                         text = "Contraseña",
                         style = MaterialTheme.typography.labelMedium,
@@ -160,21 +149,12 @@ fun LoginScreenModern(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         isError = state.passError != null,
-                        visualTransformation = if (mostrarPass)
-                            VisualTransformation.None
-                        else
-                            PasswordVisualTransformation(),
+                        visualTransformation = if (mostrarPass) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { mostrarPass = !mostrarPass }) {
                                 Icon(
-                                    imageVector = if (mostrarPass)
-                                        Icons.Filled.VisibilityOff
-                                    else
-                                        Icons.Filled.Visibility,
-                                    contentDescription = if (mostrarPass)
-                                        "Ocultar contraseña"
-                                    else
-                                        "Mostrar contraseña"
+                                    imageVector = if (mostrarPass) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                    contentDescription = if (mostrarPass) "Ocultar contraseña" else "Mostrar contraseña"
                                 )
                             }
                         },
@@ -185,26 +165,18 @@ fun LoginScreenModern(
                         })
                     )
                     state.passError?.let {
-                        Text(
-                            it,
-                            color = RojoError,
-                            style = MaterialTheme.typography.labelSmall
-                        )
+                        Text(it, color = RojoError, style = MaterialTheme.typography.labelSmall)
                     }
 
                     Spacer(Modifier.height(8.dp))
 
-                    // -------- FILA: Olvidaste / Crear cuenta ----------
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = onGoForgot) {
-                            Text(
-                                "¿Olvidaste tu contraseña?",
-                                color = AzulFondo
-                            )
+                            Text("¿Olvidaste tu contraseña?", color = AzulFondo)
                         }
 
                         TextButton(onClick = onGoRegister) {
@@ -214,16 +186,12 @@ fun LoginScreenModern(
                                 tint = AzulFondo
                             )
                             Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = "Crear cuenta",
-                                color = AzulFondo
-                            )
+                            Text(text = "Crear cuenta", color = AzulFondo)
                         }
                     }
 
                     Spacer(Modifier.height(16.dp))
 
-                    // BOTÓN ENTRAR
                     Button(
                         onClick = vm::submitLogin,
                         enabled = state.canSubmit && !state.isSubmitting,
@@ -247,22 +215,13 @@ fun LoginScreenModern(
 
                     state.errorMsg?.let {
                         Spacer(Modifier.height(8.dp))
-                        Text(
-                            it,
-                            color = RojoError,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        Text(it, color = RojoError, style = MaterialTheme.typography.bodySmall)
                     }
 
                     Spacer(Modifier.height(8.dp))
 
-                    // 👇 NUEVO: enlace para ir a ingresar el código
                     TextButton(
-                        onClick = {
-                            // Usamos el correo escrito arriba; si está vacío igual se puede
-                            // mostrar la pantalla y ahí ingresarlo.
-                            onGoVerifyCode(state.email)
-                        },
+                        onClick = { onGoVerifyCode(state.email) },
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     ) {
                         Text(
@@ -289,10 +248,6 @@ private fun DiagonalBackground(modifier: Modifier = Modifier) {
             lineTo(0f, size.height)
             close()
         }
-
-        drawPath(
-            path = path,
-            color = Color(0xFFDEE6F1) // color suave que combina con azul
-        )
+        drawPath(path = path, color = Color(0xFFDEE6F1))
     }
 }

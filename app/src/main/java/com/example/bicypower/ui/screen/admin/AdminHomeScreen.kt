@@ -19,7 +19,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.example.bicypower.data.local.product.ProductEntity
+import com.example.bicypower.data.remote.dto.ProductDtoRemote
 import com.example.bicypower.domain.validation.validateEmail
 import com.example.bicypower.domain.validation.validateNameLettersOnly
 import com.example.bicypower.domain.validation.validatePhoneDigitsOnly
@@ -33,6 +33,8 @@ import com.example.bicypower.ui.viewmodel.AdminProductsViewModel
 import com.example.bicypower.ui.viewmodel.AdminUserUi
 import com.example.bicypower.ui.viewmodel.AdminUsersState
 import com.example.bicypower.ui.viewmodel.AdminUsersViewModel
+import com.example.bicypower.ui.viewmodel.OrdersState
+import com.example.bicypower.ui.viewmodel.OrdersViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,11 +43,13 @@ fun AdminHomeScreen(
 ) {
     val vmUsers: AdminUsersViewModel = viewModel()
     val vmProd: AdminProductsViewModel = viewModel()
+    val vmOrders: OrdersViewModel = viewModel()
 
     val usersState by vmUsers.state.collectAsState()
     val prodState by vmProd.state.collectAsState()
+    val ordersState by vmOrders.state.collectAsState()
 
-    var tab by remember { mutableStateOf(0) } // 0: Usuarios, 1: Productos
+    var tab by remember { mutableStateOf(0) } // 0: Usuarios, 1: Productos, 2: Pedidos
 
     Scaffold(
         topBar = {
@@ -58,19 +62,18 @@ fun AdminHomeScreen(
                     )
                 },
                 actions = {
-                    TextButton(onClick = onLogout) {
-                        Text("Cerrar sesión")
-                    }
+                    TextButton(onClick = onLogout) { Text("Cerrar sesión") }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    if (tab == 0) vmUsers.openCreate() else vmProd.openCreate()
+            // FAB no aparece en "Pedidos"
+            if (tab != 2) {
+                FloatingActionButton(
+                    onClick = { if (tab == 0) vmUsers.openCreate() else vmProd.openCreate() }
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Agregar")
                 }
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Agregar")
             }
         }
     ) { inner ->
@@ -82,21 +85,27 @@ fun AdminHomeScreen(
             TabRow(selectedTabIndex = tab) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Usuarios") })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Productos") })
+                Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("Pedidos") })
             }
 
-            if (tab == 0) {
-                UsersSection(
+            when (tab) {
+                0 -> UsersSection(
                     state = usersState,
                     onDelete = { id -> vmUsers.askDelete(id) }
                 )
-            } else {
-                ProductsSection(
+
+                1 -> ProductsSection(
                     state = prodState,
                     onEditPrice = { id, current -> vmProd.openEditPrice(id, current) },
                     onEditImage = { id, url -> vmProd.openEditImage(id, url) },
                     onEditStock = { id, stock -> vmProd.openEditStock(id, stock) },
                     onDelete = { id -> vmProd.askDelete(id) }
                 )
+
+                else -> {
+                    LaunchedEffect(Unit) { vmOrders.loadAllOrdersAdmin() }
+                    AdminOrdersSection(state = ordersState)
+                }
             }
 
             if (prodState.errorMsg != null) {
@@ -129,12 +138,8 @@ fun AdminHomeScreen(
     if (usersState.confirmDeleteId != null) {
         AlertDialog(
             onDismissRequest = vmUsers::cancelDelete,
-            confirmButton = {
-                Button(onClick = vmUsers::confirmDelete) { Text("Eliminar") }
-            },
-            dismissButton = {
-                TextButton(onClick = vmUsers::cancelDelete) { Text("Cancelar") }
-            },
+            confirmButton = { Button(onClick = vmUsers::confirmDelete) { Text("Eliminar") } },
+            dismissButton = { TextButton(onClick = vmUsers::cancelDelete) { Text("Cancelar") } },
             title = { Text("Eliminar usuario") },
             text = { Text("¿Seguro que deseas eliminar este usuario?") }
         )
@@ -154,7 +159,7 @@ fun AdminHomeScreen(
             onDesc = vmProd::onDesc,
             onStock = vmProd::onStock,
             onDismiss = vmProd::closeCreate,
-            onCreate = vmProd::create,          // <<--- AQUÍ ESTÁ LA CORRECCIÓN
+            onCreate = vmProd::create,
             isSubmitting = prodState.isSubmitting,
             error = prodState.errorMsg
         )
@@ -171,7 +176,8 @@ fun AdminHomeScreen(
         EditImageDialog(
             url = prodState.editImageUrl,
             onUrl = vmProd::onEditImageUrl,
-            onClear = vmProd::clearImage,
+            // ✅ no dependemos de vmProd.clearImage()
+            onClear = { vmProd.onEditImageUrl(""); vmProd.applyEditImage() },
             onDismiss = vmProd::closeEditImage,
             onConfirm = vmProd::applyEditImage
         )
@@ -187,15 +193,50 @@ fun AdminHomeScreen(
     if (prodState.confirmDeleteId != null) {
         AlertDialog(
             onDismissRequest = vmProd::cancelDelete,
-            confirmButton = {
-                Button(onClick = vmProd::confirmDelete) { Text("Eliminar") }
-            },
-            dismissButton = {
-                TextButton(onClick = vmProd::cancelDelete) { Text("Cancelar") }
-            },
+            confirmButton = { Button(onClick = vmProd::confirmDelete) { Text("Eliminar") } },
+            dismissButton = { TextButton(onClick = vmProd::cancelDelete) { Text("Cancelar") } },
             title = { Text("Eliminar producto") },
             text = { Text("¿Seguro que deseas eliminar este producto?") }
         )
+    }
+}
+
+/* ---------- PEDIDOS (ADMIN) ---------- */
+@Composable
+private fun AdminOrdersSection(state: OrdersState) {
+    when {
+        state.isLoading -> Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) { CircularProgressIndicator() }
+
+        state.errorMsg != null -> Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) { Text("Error: ${state.errorMsg}") }
+
+        state.orders.isEmpty() -> Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) { Text("No hay pedidos") }
+
+        else -> LazyColumn(
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            items(state.orders, key = { it.id }) { o ->
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Pedido #${o.id}", fontWeight = FontWeight.SemiBold)
+                        Text("Usuario: ${o.usuarioId}", style = MaterialTheme.typography.labelMedium)
+                        Text("Total: ${o.total}")
+                        Text("Fecha: ${o.fecha}", style = MaterialTheme.typography.labelSmall)
+                        Text("Ítems: ${o.items.size}", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -257,7 +298,119 @@ private fun UserRow(user: AdminUserUi, onDelete: () -> Unit) {
     }
 }
 
-/* ---------- PRODUCTOS ---------- */
+/* ---------- PRODUCTOS (ROOM: ProductEntity) ---------- */
+
+private fun Any.getStringField(vararg names: String): String {
+    for (n in names) {
+        // backing field
+        runCatching {
+            val f = javaClass.getDeclaredField(n).apply { isAccessible = true }
+            val v = f.get(this)
+            if (v is String) return v
+        }
+        // getter
+        runCatching {
+            val m = javaClass.methods.firstOrNull { it.name.equals("get" + n.replaceFirstChar { c -> c.uppercase() }) }
+            val v = m?.invoke(this)
+            if (v is String) return v
+        }
+    }
+    return ""
+}
+
+private fun Any.getLongField(vararg names: String): Long {
+    for (n in names) {
+        runCatching {
+            val f = javaClass.getDeclaredField(n).apply { isAccessible = true }
+            val v = f.get(this)
+            when (v) {
+                is Long -> return v
+                is Int -> return v.toLong()
+                is String -> v.toLongOrNull()?.let { return it }
+            }
+        }
+        runCatching {
+            val m = javaClass.methods.firstOrNull { it.name.equals("get" + n.replaceFirstChar { c -> c.uppercase() }) }
+            val v = m?.invoke(this)
+            when (v) {
+                is Long -> return v
+                is Int -> return v.toLong()
+                is String -> v.toLongOrNull()?.let { return it }
+            }
+        }
+    }
+    return 0L
+}
+
+private fun Any.getIntField(vararg names: String): Int {
+    for (n in names) {
+        runCatching {
+            val f = javaClass.getDeclaredField(n).apply { isAccessible = true }
+            val v = f.get(this)
+            when (v) {
+                is Int -> return v
+                is Long -> return v.toInt()
+                is String -> v.toIntOrNull()?.let { return it }
+            }
+        }
+        runCatching {
+            val m = javaClass.methods.firstOrNull { it.name.equals("get" + n.replaceFirstChar { c -> c.uppercase() }) }
+            val v = m?.invoke(this)
+            when (v) {
+                is Int -> return v
+                is Long -> return v.toInt()
+                is String -> v.toIntOrNull()?.let { return it }
+            }
+        }
+    }
+    return 0
+}
+
+private fun Any.getDoubleField(vararg names: String): Double {
+    for (n in names) {
+        runCatching {
+            val f = javaClass.getDeclaredField(n).apply { isAccessible = true }
+            val v = f.get(this)
+            when (v) {
+                is Double -> return v
+                is Float -> return v.toDouble()
+                is Int -> return v.toDouble()
+                is Long -> return v.toDouble()
+                is String -> v.toDoubleOrNull()?.let { return it }
+            }
+        }
+        runCatching {
+            val m = javaClass.methods.firstOrNull { it.name.equals("get" + n.replaceFirstChar { c -> c.uppercase() }) }
+            val v = m?.invoke(this)
+            when (v) {
+                is Double -> return v
+                is Float -> return v.toDouble()
+                is Int -> return v.toDouble()
+                is Long -> return v.toDouble()
+                is String -> v.toDoubleOrNull()?.let { return it }
+            }
+        }
+    }
+    return 0.0
+}
+
+private fun Any.getBoolField(vararg names: String): Boolean {
+    for (n in names) {
+        runCatching {
+            val f = javaClass.getDeclaredField(n).apply { isAccessible = true }
+            val v = f.get(this)
+            if (v is Boolean) return v
+        }
+        runCatching {
+            val m = javaClass.methods.firstOrNull { it.name.equals("is" + n.replaceFirstChar { c -> c.uppercase() }) }
+                ?: javaClass.methods.firstOrNull { it.name.equals("get" + n.replaceFirstChar { c -> c.uppercase() }) }
+            val v = m?.invoke(this)
+            if (v is Boolean) return v
+        }
+    }
+    return false
+}
+
 @Composable
 private fun ProductsSection(
     state: AdminProductsState,
@@ -267,28 +420,35 @@ private fun ProductsSection(
     onDelete: (Long) -> Unit
 ) {
     when {
-        state.isLoading -> Box(
-            Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) { CircularProgressIndicator() }
+        state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
 
-        state.items.isEmpty() -> Box(
-            Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) { Text("No hay productos") }
+        state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No hay productos")
+        }
 
         else -> LazyColumn(
             Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(16.dp)
         ) {
-            items(state.items, key = { it.id }) { p ->
+            items(
+                items = state.items,
+                key = { it.getLongField("id", "productId") }
+            ) { p ->
+                val pid = p.getLongField("id", "productId")
+
+                val currentPrice = p.getDoubleField("price", "precio")
+                val currentImg = p.getStringField("imageUrl", "imagenUrl", "imgUrl", "urlImagen")
+                val currentStock = p.getIntField("stock", "cantidad", "existencia")
+
                 ProductRow(
                     product = p,
-                    onEditPrice = { onEditPrice(p.id, p.price) },
-                    onEditImage = { onEditImage(p.id, p.imageUrl) },
-                    onEditStock = { onEditStock(p.id, p.stock) },
-                    onDelete = { onDelete(p.id) }
+                    onEditPrice = { onEditPrice(pid, currentPrice) },
+                    onEditImage = { onEditImage(pid, currentImg) },
+                    onEditStock = { onEditStock(pid, currentStock) },
+                    onDelete = { onDelete(pid) }
                 )
             }
         }
@@ -297,7 +457,7 @@ private fun ProductsSection(
 
 @Composable
 private fun ProductRow(
-    product: ProductEntity,
+    product: ProductDtoRemote,
     onEditPrice: () -> Unit,
     onEditImage: () -> Unit,
     onEditStock: () -> Unit,
@@ -305,37 +465,42 @@ private fun ProductRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
+    val name = product.getStringField("name", "nombre")
+    val imageUrl = product.getStringField("imageUrl", "imagenUrl", "imgUrl", "urlImagen")
+    val price = product.getDoubleField("price", "precio")
+    val stock = product.getIntField("stock", "cantidad", "existencia")
+    val active = product.getBoolField("active", "activo")
+    val description = product.getStringField("description", "descripcion")
+
     ElevatedCard {
         Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = product.imageUrl,
-                contentDescription = product.name,
+                model = imageUrl,
+                contentDescription = name,
                 modifier = Modifier.size(72.dp)
             )
+
             Spacer(Modifier.width(12.dp))
+
             Column(Modifier.weight(1f)) {
-                Text(product.name, fontWeight = FontWeight.SemiBold)
+                Text(name, fontWeight = FontWeight.SemiBold)
+
                 Text(
-                    "$ ${"%,.0f".format(product.price)}",
+                    "$ ${"%,.0f".format(price)}",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = {}, label = { Text("Stock: ${product.stock}") })
-                    if (!product.active) {
-                        AssistChip(onClick = {}, label = { Text("Inactivo") })
-                    }
+                    AssistChip(onClick = {}, label = { Text("Stock: $stock") })
+                    if (!active) AssistChip(onClick = {}, label = { Text("Inactivo") })
                 }
-                if (product.description.isNotBlank()) {
-                    Text(
-                        product.description,
-                        style = MaterialTheme.typography.labelMedium
-                    )
+
+                if (description.isNotBlank()) {
+                    Text(description, style = MaterialTheme.typography.labelMedium)
                 }
             }
 
@@ -410,11 +575,7 @@ fun AdminCreateStaffDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
-                onClick = {
-                    if (validateStaff()) {
-                        onCreate()
-                    }
-                },
+                onClick = { if (validateStaff()) onCreate() },
                 enabled = !isSubmitting && allFilled
             ) {
                 if (isSubmitting) {
@@ -424,18 +585,14 @@ fun AdminCreateStaffDialog(
                 Text("Crear staff")
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
         title = { Text("Nuevo staff") },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { newValue ->
-                        val filtered = newValue.filter { ch ->
-                            ch.isLetter() || ch.isWhitespace()
-                        }
+                        val filtered = newValue.filter { ch -> ch.isLetter() || ch.isWhitespace() }
                         onName(filtered)
                         nameError = null
                         genericError = null
@@ -571,20 +728,14 @@ private fun AdminCreateProductDialog(
     }
 
     val messageToShow = error ?: genericError
-
-    val allFilled = name.isNotBlank() && price.isNotBlank() &&
-            image.isNotBlank() && desc.isNotBlank() &&
-            stock.isNotBlank()
+    val allFilled = name.isNotBlank() && price.isNotBlank() && image.isNotBlank() &&
+            desc.isNotBlank() && stock.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
-                onClick = {
-                    if (validateProduct()) {
-                        onCreate()
-                    }
-                },
+                onClick = { if (validateProduct()) onCreate() },
                 enabled = !isSubmitting && allFilled
             ) {
                 if (isSubmitting) {
@@ -594,18 +745,14 @@ private fun AdminCreateProductDialog(
                 Text("Crear producto")
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
         title = { Text("Nuevo producto") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { newValue ->
-                        val filtered = newValue.filter { ch ->
-                            ch.isLetter() || ch.isWhitespace()
-                        }
+                        val filtered = newValue.filter { ch -> ch.isLetter() || ch.isWhitespace() }
                         onName(filtered)
                         nameError = null
                         genericError = null
@@ -662,9 +809,7 @@ private fun AdminCreateProductDialog(
                     )
                 }
 
-                TextButton(onClick = { pick.launch("image/*") }) {
-                    Text("Elegir desde galería")
-                }
+                TextButton(onClick = { pick.launch("image/*") }) { Text("Elegir desde galería") }
 
                 OutlinedTextField(
                     value = desc,
